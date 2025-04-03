@@ -45,6 +45,7 @@
 #include "strtok_r.h"
 #include "mutex.h"
 #include "thread.h"
+#include <eh.h>
 
 #include "Common/MiniLog.h"
 
@@ -513,7 +514,7 @@ Int PeerThreadClass::findServer( SBServer server )
 	return addServerToMap(server);
 }
 
-static enum CallbackType
+enum CallbackType
 {
 	CALLBACK_CONNECT,
 	CALLBACK_ERROR,

@@ -50,10 +50,13 @@ class Thing;
 class Waypoint;
 class LookAtTranslator;
 
+enum FilterModes CPP_11(: int);
+enum FilterTypes CPP_11(: int);
+
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-enum PickType
+enum PickType CPP_11(: int)
 {
 	PICK_TYPE_TERRAIN						= COLL_TYPE_0,
 	PICK_TYPE_SELECTABLE				= COLL_TYPE_1,
@@ -84,7 +87,7 @@ public:
 	};
 
   // Return values for worldToScreenTriReturn
-  enum WorldToScreenReturn
+  enum WorldToScreenReturn CPP_11(: int)
   {
     WTS_INSIDE_FRUSTUM = 0, // On the screen (inside frustum of camera)
     WTS_OUTSIDE_FRUSTUM,    // Return is valid but off the screen (outside frustum of camera)

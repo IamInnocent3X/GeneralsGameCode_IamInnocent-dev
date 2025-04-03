@@ -101,7 +101,7 @@
 
 #endif
 
-#if (defined(_DEBUG) || defined(_INTERNAL)) 
+#if (defined(_DEBUG) || defined(_INTERNAL)) && !defined(__GNUC__)
 	#define MSGW3DNEW(MSG)					new( MSG, 0 )
 	#define MSGW3DNEWARRAY(MSG)			new( MSG, 0 )
 	#define W3DNEW									new("W3D_" __FILE__, 0)
@@ -187,7 +187,9 @@ public:
 ** I'm relpacing all occurances of 'min' and 'max with 'MIN' and 'MAX'.  For code which
 ** is out of our domain (e.g. Max sdk) I'm declaring template functions for 'min' and 'max'
 */
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 
 #ifndef MAX
 #define MAX(a,b)            (((a) > (b)) ? (a) : (b))

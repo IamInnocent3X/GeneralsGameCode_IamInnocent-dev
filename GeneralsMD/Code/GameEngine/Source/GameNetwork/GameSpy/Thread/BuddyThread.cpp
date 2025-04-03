@@ -40,6 +40,7 @@
 
 #include "mutex.h"
 #include "thread.h"
+#include <eh.h>
 
 #ifdef _INTERNAL
 // for occasional debugging...
@@ -121,7 +122,7 @@ private:
 	std::string m_nick, m_email, m_pass;
 };
 
-static enum CallbackType
+enum CallbackType
 {
 	CALLBACK_CONNECT,
 	CALLBACK_ERROR,

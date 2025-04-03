@@ -26,12 +26,11 @@
 //
 // Debug module - Test 3 (Checking FLAT I/O, logging)
 //////////////////////////////////////////////////////////////////////////////
-#ifdef NDEBUG
 #include "../debug.h"
 
 unsigned divByNull;
 
-void main(void)
+int main(void)
 {
   // switch to debug group
   Debug::Command("debug.");
@@ -59,4 +58,5 @@ void main(void)
 
   // and now let's crash!
   divByNull/=divByNull;
+  return 0;
 }
