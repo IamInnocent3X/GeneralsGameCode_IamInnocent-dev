@@ -45,6 +45,15 @@
 #define THIS_PLAYER "<This Player>"
 #define LOCAL_PLAYER "<Local Player>"
 
+#define PLAYER_0 "player0"
+#define PLAYER_1 "player1"
+#define PLAYER_2 "player2"
+#define PLAYER_3 "player3"
+#define PLAYER_4 "player4"
+#define PLAYER_5 "player5"
+#define PLAYER_6 "player6"
+#define PLAYER_7 "player7"
+
 #define THE_PLAYER "ThePlayer"
 #define TEAM_THE_PLAYER "teamThePlayer"
 
@@ -1062,6 +1071,7 @@ public:
 	AsciiString getName(void) const {return m_uiName;}
 	AsciiString getName2(void) const {return m_uiName2;}
 	Int getUiStrings(AsciiString strings[MAX_PARMS]) const;
+	AsciiString getHelpText(void) const {return m_helpText;}
 	Int getNumParameters(void) const {return m_numParameters;}
 	enum Parameter::ParameterType getParameterType(Int ndx) const;
 };

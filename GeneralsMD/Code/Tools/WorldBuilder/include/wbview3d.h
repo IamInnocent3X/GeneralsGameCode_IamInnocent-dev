@@ -237,6 +237,10 @@ protected:
 	void updateLights();
 	void updateScorches();
 	void updateTrees();
+	int parseHexColorFromProfile(const char* section, const char* key, const char* defaultHex);
+	// void addMapObjectIfVisible(MapObject *pMapObj);
+	// void updateVisibleMapObjects();
+	
 
 public:
 	virtual Bool viewToDocCoords(CPoint curPt, Coord3D *newPt, Bool constrain=true);
@@ -250,6 +254,9 @@ public:
 	// find the best model for an object
 	AsciiString getBestModelName(const ThingTemplate* tt, const ModelConditionFlags& c);
 
+	// Adriane [Deathscythe] - Nasty dogshit hack
+	AsciiString getBestModelNameWBPrev(const ThingTemplate* tt, const ModelConditionFlags& c);
+	
 	/// Invalidates an build list object.
 	void invalBuildListItemInView(BuildListInfo *pBuild);
 

@@ -92,6 +92,11 @@ const Real HANDLE_SIZE = (2.0f) * LINE_THICKNESS;
 	ShaderClass::DETAILCOLOR_DISABLE, ShaderClass::DETAILALPHA_DISABLE) )
 
 
+int DrawObject::m_defaultIconColor = 0x00FFFF; // or whatever the default value is
+int DrawObject::m_waypointIconColor = 0x00FF00;
+int DrawObject::m_unitIconColor = 0xFF00FF;
+int DrawObject::m_roadIconColor = 0xFFFF00;
+
 Bool DrawObject::m_squareFeedback = false;
 Int	DrawObject::m_brushWidth = 3;
 Int	DrawObject::m_brushFeatherWidth = 3;
@@ -155,6 +160,11 @@ DrawObject::DrawObject(void) :
 	m_lineRenderer(NULL),
   m_drawSoundRanges(false)
 {
+	// m_roadIconColor     = 0xFFFF00; // yellow
+	// m_unitIconColor     = 0xFF00FF; // pink
+	// m_waypointIconColor = 0x00FF00; // green
+	// m_defaultIconColor  = 0x00FFFF; // cyan
+
 	m_feedbackPoint.x = 20;
 	m_feedbackPoint.y = 20;
 	initData();
@@ -245,6 +255,9 @@ Int DrawObject::freeMapResources(void)
 #define NUM_SELECT_TRI 16
 // Height of selection pyramid.
 #define SELECT_PYRAMID_HEIGHT (1.0f)
+
+// // Total number of triangles
+// #define NUM_TRI (3 + NUM_ARROW_TRI + NUM_SELECT_TRI)
 
 
 Int DrawObject::initData(void)
@@ -1376,10 +1389,13 @@ Int DrawObject::updateVB(DX8VertexBufferClass	*pVB, Int color, Bool doArrow, Boo
 {
 	Int i, k;
 
-	Real factor = TheGlobalData->m_terrainAmbient[0].red +
-								TheGlobalData->m_terrainAmbient[0].green +
-								TheGlobalData->m_terrainAmbient[0].blue;
-	if (factor > 1.0f) factor = 1.0f;
+	// Real factor = TheGlobalData->m_terrainAmbient[0].red +
+	// 			  TheGlobalData->m_terrainAmbient[0].green +
+	// 		      TheGlobalData->m_terrainAmbient[0].blue;
+	// if (factor > 1.0f) factor = 1.0f;
+
+	Real factor = 1.0f;
+	
 	Int r = color&0xFF;
 	Int g = (color&0x00FF00)>>8;
 	Int b = (color&0xFF0000)>>16;
@@ -1387,6 +1403,14 @@ Int DrawObject::updateVB(DX8VertexBufferClass	*pVB, Int color, Bool doArrow, Boo
 	r *= factor;
 	g *= factor;
 	b *= factor;
+
+
+	// r = 0;
+	// g = 255;
+	// b = 255; // cyan
+	// r = 255;
+	// g = 105;
+	// b = 180; // hot pink!
 	const Int theAlpha = 127;
 	static const Int highlightColors[NUM_HIGHLIGHT] = { ((255<<8) + (255<<16)) , 
 				((255<<16)), (255<<8) };
@@ -2126,11 +2150,17 @@ if (pMapObj->isSelected()) {
 			if (TheTerrainRenderObject) {
 				loc.z += TheTerrainRenderObject->getHeightMapHeight(loc.x, loc.y, NULL);
 			}
-			// Cull.
-			//SphereClass bounds(Vector3(loc.x, loc.y, loc.z), THE_RADIUS); 
-			//if (rinfo.Camera.Cull_Sphere(bounds)) {
-			//	continue;
-			//}
+			/**
+			 * Adriane [Deathscythe] -- this check already existed, not sure why they commented it out.
+			 * It actually works too -- significantly reduces lag when rendering object icons
+			 * with lots of objects placed on the map.
+			 *
+			 * Cull the mfs
+			 */
+			SphereClass bounds(Vector3(loc.x, loc.y, loc.z), THE_RADIUS); 
+			if (rinfo.Camera.Cull_Sphere(bounds)) {
+				continue;
+			}
 			Bool doArrow = true;
 			if (pMapObj->getFlag(FLAG_ROAD_FLAGS) || pMapObj->getFlag(FLAG_BRIDGE_FLAGS) || pMapObj->isWaypoint()) 
 			{
@@ -2176,35 +2206,38 @@ if (pMapObj->isSelected()) {
 				}
 			}
 
-			if (count&1) {
-				int setting = pMapObj->getColor();
-					
-				if (doArrow) {
-					setting |= (1<<25);
-				}
-				if (doDiamond) {
-					setting |= (1<<26);
-				}
-
-				if (setting != rememberLastSettingVB1)	{
+			int settingColor;
+			
+			if (doDiamond) { // Waypoint
+				settingColor = m_waypointIconColor;
+			} else if ( pMapObj->getFlag(FLAG_ROAD_FLAGS)) {
+				settingColor = m_roadIconColor;
+			} else if ( pMapObj->getThingTemplate() && (pMapObj->getThingTemplate()->getEditorSorting() == ES_INFANTRY || pMapObj->getThingTemplate()->getEditorSorting() == ES_VEHICLE) ) {
+				settingColor = m_unitIconColor;
+			} else { // Everything else
+				settingColor = m_defaultIconColor;
+			}
+			
+			// Now build the setting
+			int setting = settingColor;
+			if (doArrow) {
+				setting |= (1 << 25);
+			}
+			if (doDiamond) {
+				setting |= (1 << 26);
+			}
+			
+			// Now push into vertex buffers like before
+			if (count & 1) {
+				if (setting != rememberLastSettingVB1) {
 					rememberLastSettingVB1 = setting;
-					updateVB(m_vertexBufferTile1,pMapObj->getColor(), doArrow, doDiamond);
+					updateVB(m_vertexBufferTile1, settingColor, doArrow, doDiamond);
 				}
 				DX8Wrapper::Set_Vertex_Buffer(m_vertexBufferTile1);
-				
 			} else {
-				int setting = pMapObj->getColor();
-					
-				if (doArrow) {
-					setting |= (1<<25);
-				}
-				if (doDiamond) {
-					setting |= (1<<26);
-				}
-
 				if (setting != rememberLastSettingVB2) {
 					rememberLastSettingVB2 = setting;
-					updateVB(m_vertexBufferTile2, pMapObj->getColor(), doArrow, doDiamond);
+					updateVB(m_vertexBufferTile2, settingColor, doArrow, doDiamond);
 				}
 				DX8Wrapper::Set_Vertex_Buffer(m_vertexBufferTile2);
 			}

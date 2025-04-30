@@ -29,6 +29,7 @@
 #include "intersec.h"
 #include "W3DDevice/GameClient/W3DAssetManager.h"
 #include "W3DDevice/GameClient/Module/W3DModelDraw.h"
+#include "W3DDevice/GameClient/Module/W3DTreeDraw.h"
 #include "agg_def.h"
 #include "part_ldr.h"
 #include "rendobj.h"
@@ -114,6 +115,8 @@ class SkeletonSceneClass;
 #define WINDOW_HEIGHT				480
 #define UPDATE_TIME					100  /* 10 frames a second */
 #define MOUSE_WHEEL_FACTOR	32
+
+#define ICON_COLOR_SECTION "EntityIconColor"
 
 #define SAMPLE_DYNAMIC_LIGHT	1
 #ifdef SAMPLE_DYNAMIC_LIGHT
@@ -598,6 +601,12 @@ void WbView3d::reset3dEngineDisplaySize(Int width, Int height)
 	m_actualWinSize.y = height;
 	if (m_ww3dInited) {
 		WW3D::Set_Device_Resolution(m_actualWinSize.x, m_actualWinSize.y, true);
+	}
+
+	// Update camera FOV instead of stretching -- Preserves ratio
+	if (m_camera) {
+		float newAspectRatio = (float)width / (float)height;
+		m_camera->Set_Aspect_Ratio(newAspectRatio);
 	}
 }
 
@@ -1108,6 +1117,52 @@ void WbView3d::removeFenceListObjects(MapObject *pObject)
 	}
 
 	Invalidate(false);
+}
+
+/**
+ * Adriane [Deathscythe]
+ * Very nasty hack incoming, good lord — some necessary functions are already exposed for tree drawing,
+ * and I can fix the preview bug using those.
+ * 
+ * Do note though: this is a temporary fix —
+ * WorldBuilder originally only checked for W3DModelDraw. However, due to
+ * optimizations made by the Zero Hour developers, many tree objects were
+ * converted to use W3DTreeDraw instead. As a result, previews for these
+ * objects were broken. This fallback restores support for tree previews.
+ * 
+ * Extra: the original getBestModelName() is also synonymous with the shadow system.
+ * I had to revert edits to the original and create a new function,
+ * since there's a weird bug I haven't been able to fix where models are drawn twice
+ * when trees are rendered.
+ */
+AsciiString WbView3d::getBestModelNameWBPrev(const ThingTemplate* tt, const ModelConditionFlags& c)
+{
+	if (tt)
+	{
+		const ModuleInfo& mi = tt->getDrawModuleInfo();
+		if (mi.getCount() > 0)
+		{
+			const ModuleData* mdd = mi.getNthData(0);
+
+			// Try W3DModelDraw first
+			const W3DModelDrawModuleData* md = mdd ? mdd->getAsW3DModelDrawModuleData() : NULL;
+			if (md)
+			{
+				return md->getBestModelNameForWB(c);
+			}
+
+			/*
+			* Adriane [Deathscythe] 
+			* Fallback: Try W3DTreeDraw -- now supports preview model in WorldBuilder.
+			*/
+			const W3DTreeDrawModuleData* td = mdd ? mdd->getAsW3DTreeDrawModuleData() : NULL;
+			if (td)
+			{
+				return td->m_modelName;
+			}
+		}
+	}
+	return AsciiString::TheEmptyString;
 }
 
 // ----------------------------------------------------------------------------
@@ -2015,6 +2070,86 @@ Bool WbView3d::docToViewCoords(Coord3D curPt, CPoint* newPt)
 	return coordInsideFrustrum;
 }
 
+
+Int WbView3d::parseHexColorFromProfile(const char* section, const char* key, const char* defaultHex)
+{
+    CString str = AfxGetApp()->GetProfileString(section, key, defaultHex);
+
+#ifdef _UNICODE
+    char buffer[16];
+    WideCharToMultiByte(CP_ACP, 0, str, -1, buffer, sizeof(buffer), NULL, NULL);
+    unsigned int color = 0;
+    sscanf(buffer, "%x", &color);
+#else
+    unsigned int color = 0;
+    sscanf(str, "%x", &color);
+#endif
+
+    color &= 0xFFFFFF;
+
+    // 🔥 Swap Red and Blue to match Windows COLORREF
+    unsigned int r = (color >> 16) & 0xFF;
+    unsigned int g = (color >> 8) & 0xFF;
+    unsigned int b = (color >> 0) & 0xFF;
+    color = (b << 16) | (g << 8) | (r << 0);
+
+    return (Int)color;
+}
+
+
+// void WbView3d::addMapObjectIfVisible(MapObject *pMapObj)
+// {
+//     if (!pMapObj) return;
+
+//     const Coord3D* loc = pMapObj->getLocation();
+//     SphereClass bounds(Vector3(loc->x, loc->y, loc->z), THE_RADIUS);
+//     Bool isCulled = m_camera->Cull_Sphere(bounds);
+
+//     if (isCulled) {
+//         return;
+//     }
+
+//     RenderObjClass* renderObj = NULL;
+//     Real scale = 1.0;
+//     AsciiString modelName = getModelNameAndScale(pMapObj, &scale, BODY_PRISTINE);
+//     if (!modelName.isEmpty() && strncmp(modelName.str(), "No ", 3) != 0) {
+//         renderObj = m_assetManager->Create_Render_Obj(modelName.str(), scale, 0);
+
+//         if (renderObj) {
+//             pMapObj->setRenderObj(renderObj);
+
+//             // 🛠 Fix: adjust z by terrain height
+//             Coord3D finalLoc = *loc;
+//             if (m_heightMapRenderObj) {
+//                 finalLoc.z += m_heightMapRenderObj->getHeightMapHeight(finalLoc.x, finalLoc.y, NULL);
+//             }
+
+//             Matrix3D renderObjPos(true); // Identity
+//             renderObjPos.Translate(finalLoc.x, finalLoc.y, finalLoc.z);
+//             renderObjPos.Rotate_Z(pMapObj->getAngle());
+//             renderObj->Set_Transform(renderObjPos);
+
+//             m_scene->Add_Render_Object(renderObj);
+//             REF_PTR_RELEASE(renderObj); // Scene owns it now
+//         }
+//     }
+// }
+
+
+// void WbView3d::updateVisibleMapObjects()
+// {
+//     // Step 1: Clean up previous render objects
+//     resetRenderObjects();
+
+//     // Step 2: Loop through ALL MapObjects and add if visible
+//     MapObject* pMapObj = MapObject::getFirstMapObject();
+//     while (pMapObj)
+//     {
+//         addMapObjectIfVisible(pMapObj);
+//         pMapObj = pMapObj->getNext();
+//     }
+// }
+
 // ----------------------------------------------------------------------------
 void WbView3d::redraw(void) 
 {
@@ -2052,7 +2187,23 @@ void WbView3d::redraw(void)
 //			WWDEBUG_SAY(("%d ms for updateCenter, %d FPS\n", curTicks, 1000/curTicks));
 //		}
 	}
+
+	// const Int COLOR_GREN = 0x00FF00; // Reserved for waypoint path
+	// const Int COLOR_YLLW = 0xFFFF00; // Reserved for roads
+	// const Int COLOR_PINK = 0xFF00FF; // Reserved for units
+	// const Int COLOR_CYAN = 0x00FFFF; // Reserved for anything else
+	// AfxGetApp()->GetProfileString(APP_SECTION, "Color16", "0");
+
 	if (m_drawObject) {
+		Int roadIconColor = parseHexColorFromProfile(ICON_COLOR_SECTION, "Roads", "FFFF00"); 
+		m_drawObject->setRoadIconColor(roadIconColor);
+		Int waypointIconColor  = parseHexColorFromProfile(ICON_COLOR_SECTION, "Waypoints", "00FF00");
+		m_drawObject->setWaypointIconColor(waypointIconColor);
+		Int unitIconColor  = parseHexColorFromProfile(ICON_COLOR_SECTION, "Units", "FF00FF");
+		m_drawObject->setUnitIconColor(unitIconColor);
+		Int defaultIconColor  = parseHexColorFromProfile(ICON_COLOR_SECTION, "Defaukt", "00FFFF");
+		m_drawObject->setDefaultIconColor(defaultIconColor);
+
 		m_drawObject->setDrawObjects(m_showObjects, 
 			m_showWaypoints || WaypointTool::isActive(),
 			m_showPolygonTriggers || PolygonTool::isActive(),
@@ -2064,6 +2215,8 @@ void WbView3d::redraw(void)
 	if (m_buildRedMultiplier>4.0f || m_buildRedMultiplier<0) {
 		m_buildRedMultiplier = 0;
 	}
+
+	// updateVisibleMapObjects();
 	render();
 	m_time = ::GetTickCount();
 }
@@ -2101,7 +2254,7 @@ void WbView3d::render()
 		if (m_showWireframe) {
 			if (m_heightMapRenderObj) {
 				m_heightMapRenderObj->doTextures(false);
-				m_scene->Set_Polygon_Mode(SceneClass::LINE);
+				m_scene->Set_Polygon_Mode(SceneClass::POINT);
 				// Render 3D scene
 				WW3D::Render(m_scene,m_camera);	
 				WW3D::Render(m_baseBuildScene,m_camera);	
@@ -2304,6 +2457,7 @@ void WbView3d::initWW3D()
 		TheWritableGlobalData->m_useShadowVolumes = true;
 		TheWritableGlobalData->m_useShadowDecals = true;
 		TheWritableGlobalData->m_enableBehindBuildingMarkers = false;	//this is only for the game.
+		// TheWritableGlobalData->m_textureReductionFactor = 4;
 		if (TheW3DShadowManager==NULL)
 		{	TheW3DShadowManager = new W3DShadowManager;
  			TheW3DShadowManager->init();			

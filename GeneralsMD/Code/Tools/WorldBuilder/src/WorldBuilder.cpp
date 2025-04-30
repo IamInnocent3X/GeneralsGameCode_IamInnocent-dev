@@ -83,6 +83,7 @@
 #include "Win32Device/Common/Win32LocalFileSystem.h"
 #include "Win32Device/Common/Win32BIGFileSystem.h"
 
+#include "Common/WellKnownKeys.h"
 #ifdef _INTERNAL
 // for occasional debugging...
 //#pragma optimize("", off)
@@ -101,6 +102,12 @@ void initSubsystem(SUBSYSTEM*& sysref, SUBSYSTEM* sys, const char* path1 = NULL,
 
 #define APP_SECTION "WorldbuilderApp"
 #define OPEN_FILE_DIR "OpenDirectory"
+#define GAME_DIR "GameDirectory"
+#define EULA "AgreedToEula"
+#define ABOUT_SECTION "AboutWindow"
+
+#define NEWLINE "\r\n"
+
 
 Win32Mouse *TheWin32Mouse = NULL;
 const char *gAppPrefix = "wb_"; /// So WB can have a different debug log file name.
@@ -257,6 +264,7 @@ CWorldBuilderApp::~CWorldBuilderApp()
 {
 	m_curTool = NULL;
 	m_selTool = NULL;
+	m_bLaunchOnStartUp = true;
 
 	for (Int i=0; i<NUM_VIEW_TOOLS; i++) {
 		if (m_tools[i]) {
@@ -272,11 +280,19 @@ CWorldBuilderApp::~CWorldBuilderApp()
 
 BOOL CWorldBuilderApp::InitInstance()
 {
+	
 //#ifdef _RELEASE
-	EulaDialog eulaDialog;
-	if( eulaDialog.DoModal() == IDCANCEL )
-	{
-		return FALSE;
+	if (this->GetProfileInt(APP_SECTION, EULA, 0) == 0) {
+		EulaDialog eulaDialog;
+		if (eulaDialog.DoModal() == IDCANCEL) {
+			return FALSE;
+		}
+		/**
+		 * Adriane [Deathscythe] 
+		 * Idk why this thing stores it on c:/windows
+		 * instead of the actual worldbuilder.ini in documents but fuck it -- it works anyways.
+		 */ 
+		this->WriteProfileInt(APP_SECTION, EULA, 1);
 	}
 //#endif
 
@@ -487,8 +503,23 @@ BOOL CWorldBuilderApp::InitInstance()
 
 	selectPointerTool();   
 
+	// Load GameDirectory
+	CString gameDir = this->GetProfileString(APP_SECTION, GAME_DIR);
+	m_gameDirectory = gameDir;
+
+	if (m_gameDirectory != AsciiString("")){
+		DEBUG_LOG(("gameDirectory=%s \n", m_gameDirectory.str()));
+	} else {
+		DEBUG_LOG(("Warning! Game directory not initialized.\n"));
+	}
+
 	CString openDir = this->GetProfileString(APP_SECTION, OPEN_FILE_DIR);
 	m_currentDirectory = openDir;
+
+	m_bLaunchOnStartUp=::AfxGetApp()->GetProfileInt(ABOUT_SECTION, "LaunchOnStartUp", 1);
+	if(m_bLaunchOnStartUp){
+		OnAppAbout();
+	}
 
 	return TRUE;
 }
@@ -608,6 +639,8 @@ public:
 	//{{AFX_VIRTUAL(CAboutDlg)
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+	BOOL m_bLaunchOnStartUpAbout;
+	MapObject* m_lastSelectedObject;
 	//}}AFX_VIRTUAL
 
 // Implementation
@@ -615,13 +648,156 @@ protected:
 	//{{AFX_MSG(CAboutDlg)
 		// No message handlers
 	//}}AFX_MSG
+	afx_msg void OnCenterOnSelectedButtonWP();
+	afx_msg void OnCenterOnSelectedButtonObject();
+	afx_msg void OnFindButtonClicked();
+	afx_msg void OnMove(int x, int y);
+	afx_msg void OnLaunchOnStartup();
+	void OnCenterOnSelected(Bool findObject); 
+	afx_msg void OnRefreshQueryObject();
+	afx_msg void OnRefreshQueryWaypoint();
+	afx_msg void OnWindowPosChanging(WINDOWPOS* lpwndpos);
+	virtual void OnOK();
+	virtual BOOL OnInitDialog();
 	DECLARE_MESSAGE_MAP()
 };
 
+
+BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
+	ON_WM_MOVE()
+	ON_BN_CLICKED(IDC_FIND_HKEY_BUTTON, OnFindButtonClicked)
+
+	ON_BN_CLICKED(IDC_FIND_OBJ_BUTTON, OnCenterOnSelectedButtonObject)
+	ON_BN_CLICKED(IDC_REFRESH_OBJ_BUTTON, OnRefreshQueryObject)
+
+	ON_BN_CLICKED(IDC_FIND_WP_BUTTON, OnCenterOnSelectedButtonWP)
+	ON_BN_CLICKED(IDC_REFRESH_WP_BUTTON, OnRefreshQueryWaypoint)
+
+	ON_BN_CLICKED(IDC_LAUNCH_ONSTARTUP, OnLaunchOnStartup)
+	ON_WM_WINDOWPOSCHANGING() 
+	//{{AFX_MSG_MAP(CAboutDlg)
+		// No message handlers
+	//}}AFX_MSG_MAP
+END_MESSAGE_MAP()
+
+
 CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
 {
+	m_bLaunchOnStartUpAbout = true;
 	//{{AFX_DATA_INIT(CAboutDlg)
 	//}}AFX_DATA_INIT
+}
+
+void CAboutDlg::OnRefreshQueryObject()
+{
+	CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_FIND_QUERY_OBJ);
+	if (!pCombo) return;
+
+	pCombo->ResetContent();
+
+	MapObject* pMapObj = MapObject::getFirstMapObject();
+	while (pMapObj)
+	{
+		Bool exists;
+		AsciiString objName = pMapObj->getProperties()->getAsciiString(TheKey_objectName, &exists);
+
+		if (exists && !objName.isEmpty() && !pMapObj->getFlag(FLAG_ROAD_FLAGS))
+		{
+			pCombo->AddString(objName.str());
+		}
+
+		pMapObj = pMapObj->getNext();
+	}
+}
+
+void CAboutDlg::OnRefreshQueryWaypoint()
+{
+	CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_FIND_QUERY_WP);
+	if (!pCombo) return;
+
+	pCombo->ResetContent();
+
+	MapObject* pMapObj = MapObject::getFirstMapObject();
+	while (pMapObj)
+	{
+		if (pMapObj->isWaypoint()) {
+			AsciiString wayName = pMapObj->getWaypointName();
+			if (wayName.isNotEmpty() && pCombo->FindStringExact(-1, wayName.str()) == CB_ERR) {
+				pCombo->AddString(wayName.str());
+			}
+		}
+
+		pMapObj = pMapObj->getNext();
+	}
+}
+
+
+void CAboutDlg::OnCenterOnSelected(Bool findObject = true) 
+{
+	CComboBox* pCombo = (CComboBox*)GetDlgItem(findObject ? IDC_FIND_QUERY_OBJ : IDC_FIND_QUERY_WP);
+	if (!pCombo) return;
+
+	CString selectedName;
+	pCombo->GetWindowText(selectedName);
+
+	if (selectedName.IsEmpty())
+		return;
+
+	MapObject* mapObject = MapObject::getFirstMapObject();
+	while (mapObject) {
+		if (findObject) {
+			// Looking for a regular object by object name
+			Bool exists;
+			AsciiString objName = mapObject->getProperties()->getAsciiString(TheKey_objectName, &exists);
+
+			if (exists && !objName.isEmpty() && selectedName == objName.str()) {
+				const Coord3D* objectPosition = mapObject->getLocation();
+				WbView3d* p3View = CWorldBuilderDoc::GetActive3DView();
+				if (p3View) {
+					p3View->setCenterInView(objectPosition->x / MAP_XY_FACTOR, objectPosition->y / MAP_XY_FACTOR);
+				}
+				return;
+			}
+		}
+		else if (mapObject->isWaypoint()) {
+			AsciiString wayName = mapObject->getWaypointName();
+			if (!wayName.isEmpty() && selectedName == wayName.str()) {
+				const Coord3D* objectPosition = mapObject->getLocation();
+				WbView3d* p3View = CWorldBuilderDoc::GetActive3DView();
+				if (p3View) {
+					p3View->setCenterInView(objectPosition->x / MAP_XY_FACTOR, objectPosition->y / MAP_XY_FACTOR);
+				}
+				return;
+			}
+		}
+
+		mapObject = mapObject->getNext();
+	}
+}
+
+
+void CAboutDlg::OnCenterOnSelectedButtonObject() 
+{
+	OnCenterOnSelected();
+}
+
+void CAboutDlg::OnCenterOnSelectedButtonWP() 
+{
+	OnCenterOnSelected(false);
+}
+
+BOOL CAboutDlg::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+
+	m_bLaunchOnStartUpAbout=::AfxGetApp()->GetProfileInt(ABOUT_SECTION, "LaunchOnStartUp", 1);
+	CButton *pButton = (CButton*)GetDlgItem(IDC_LAUNCH_ONSTARTUP);
+	pButton->SetCheck(m_bLaunchOnStartUpAbout ? 1:0);
+
+	OnRefreshQueryObject();
+	OnRefreshQueryWaypoint();
+
+	return TRUE;  // return TRUE unless you set the focus to a control
 }
 
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
@@ -631,18 +807,209 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 	//}}AFX_DATA_MAP
 }
 
-BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
-	//{{AFX_MSG_MAP(CAboutDlg)
-		// No message handlers
-	//}}AFX_MSG_MAP
-END_MESSAGE_MAP()
+void CAboutDlg::OnLaunchOnStartup()
+{
+	CButton *pButton = (CButton*)GetDlgItem(IDC_LAUNCH_ONSTARTUP);
+	m_bLaunchOnStartUpAbout = (pButton->GetCheck() == 1);
+	::AfxGetApp()->WriteProfileInt(ABOUT_SECTION, "LaunchOnStartUp", m_bLaunchOnStartUpAbout ? 1 : 0);
+}
+
+void CAboutDlg::OnWindowPosChanging(WINDOWPOS* lpwndpos)
+{
+    if (IsIconic())
+    {
+        // Stop the OS from repositioning the minimized window
+        lpwndpos->flags |= SWP_NOMOVE;
+    }
+
+    CDialog::OnWindowPosChanging(lpwndpos);
+}
+
+
+void CAboutDlg::OnMove(int x, int y) 
+{
+	CDialog::OnMove(x, y);
+	
+	if (this->IsWindowVisible() && !this->IsIconic()) {
+		CRect frameRect;
+		GetWindowRect(&frameRect);
+		::AfxGetApp()->WriteProfileInt(ABOUT_SECTION, "Top", frameRect.top);
+		::AfxGetApp()->WriteProfileInt(ABOUT_SECTION, "Left", frameRect.left);
+	}
+	
+}
+
+void CAboutDlg::OnOK() 
+{
+    // Check if the IDC_OBJECT_SEARCH_EDIT control is focused
+    if (GetFocus() == GetDlgItem(IDC_FIND_QUERY) || GetFocus() == GetDlgItem(IDC_HOTKEYLIST) )
+    {
+        OnFindButtonClicked();  // Trigger search on "Enter" key press
+    }
+    // else
+    // {
+    //     CDialog::OnOK();  // Call the default OK behavior if the search box isn't focused
+    // }
+}
+
+void CAboutDlg::OnFindButtonClicked()
+{
+	CEdit* pFindBox = (CEdit*)GetDlgItem(IDC_FIND_QUERY);
+	CEdit* pHotkeyList = (CEdit*)GetDlgItem(IDC_HOTKEYLIST);
+	if (!pFindBox || !pHotkeyList) return;
+
+	CString query, content;
+	pFindBox->GetWindowText(query);
+	pHotkeyList->GetWindowText(content);
+
+	if (query.IsEmpty())
+	{
+		MessageBeep(MB_ICONEXCLAMATION);
+		pHotkeyList->SetSel(-1, -1); // Clear selection
+		return;
+	}
+
+	// Case-insensitive search
+	CString contentLower = content;
+	CString queryLower = query;
+	contentLower.MakeLower();
+	queryLower.MakeLower();
+
+	int startChar = 0, endChar = 0;
+	pHotkeyList->GetSel(startChar, endChar);
+
+	// Start search just after current selection
+	int pos = contentLower.Find(queryLower, endChar);
+
+	// Wrap around if not found
+	if (pos == -1 && endChar > 0)
+		pos = contentLower.Find(queryLower, 0);
+
+	if (pos != -1)
+	{
+		pHotkeyList->SetFocus();
+		pHotkeyList->SetSel(pos, pos + query.GetLength());
+		// GetDlgItem(IDC_FIND_QUERY)->SetFocus();
+	}
+	else
+	{
+		MessageBeep(MB_ICONEXCLAMATION);
+		pHotkeyList->SetSel(-1, -1); // Clear selection if not found
+		// GetDlgItem(IDC_FIND_QUERY)->SetFocus();
+	}
+}
+
+
 
 // App command to run the dialog
 void CWorldBuilderApp::OnAppAbout()
 {
-	CAboutDlg aboutDlg;
-	aboutDlg.DoModal();
+
+	CAboutDlg* pAboutDlg = new CAboutDlg;
+
+	if (pAboutDlg->Create(IDD_ABOUTBOX, AfxGetMainWnd()))
+	{
+		int top  = ::AfxGetApp()->GetProfileInt(ABOUT_SECTION, "Top", -1);
+		int left = ::AfxGetApp()->GetProfileInt(ABOUT_SECTION, "Left", -1);
+
+		if (top != -1 && left != -1)
+		{
+			CRect rect;
+			pAboutDlg->GetWindowRect(&rect);
+			int width  = rect.Width();
+			int height = rect.Height();
+
+			pAboutDlg->SetWindowPos(NULL, left, top, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+		}
+
+		pAboutDlg->ShowWindow(SW_SHOW);
+	}
+	else
+	{
+		delete pAboutDlg;
+	}
+
+	CEdit* pEdit = (CEdit*)pAboutDlg->GetDlgItem(IDC_HOTKEYLIST);
+
+	struct HotkeyEntry
+	{
+		const char* key;
+		const char* description;
+	};
+	
+	HotkeyEntry hotkeys[] =
+	{
+		{ "Tab", "Lock Horizontal" },
+		{ "Q", "Brush Tool" },
+		{ "W", "Add Brush" },
+		{ "E", "Subtract Brush" },
+		{ "R", "Feather Tool" },
+		{ "T", "Mold Tool  " }, // artificially spaced it out -- theres a bug with tabs
+		{ "Alt+1", "Show Objects" },
+		{ "Alt+2", "Show Waypoints" },
+		{ "Alt+3", "Show Polygon Triggers" },
+		{ "Alt+4", "Show Labels" },
+		{ "Alt+5", "Show Models" },
+		{ "Alt+6", "Show Bounding Boxes" },
+		{ "Alt+7", "Show Sight Ranges" },
+		{ "Alt+8", "Show Weapon Ranges" },
+		{ "Alt+9", "Show Map Boundaries" },
+		{ "Alt+0", "Show Terrain" },
+		{ "Y", "Water Tool" },
+		{ "A", "Tile Tool    " }, // artificially spaced it out -- theres a bug with tabs
+		{ "S", "Big Tile Tool" },
+		{ "D", "Tile Flood Fill" },
+		{ "F", "Auto Edge Out Tool" },
+		{ "G", "Blend Edge Tool" },
+		{ "Z", "Place Object Tool" },
+		{ "X", "Road Tool" },
+		{ "C", "Grove Tool" },
+		{ "V", "Ramp Tool" },
+		{ "B", "Scorch Tool" },
+		{ "N", "Fence Tool" },
+		{ "M", "Build List Tool" },
+		{ "F1", "Waypoint Tool" },
+		{ "F2", "Polygon Tool" },
+		{ "F3", "Border Tool" },
+		{ "F4", "Script Editor" },
+		{ "F5", "Team Editor" },
+	};
+	
+	CString text;
+	int numHotkeys = sizeof(hotkeys) / sizeof(hotkeys[0]);
+	const int maxFirstColumnLength = 17; // You can tweak this number (roughly key + description length)
+	
+	for (int i = 0; i < numHotkeys; i++)
+	{
+		CString firstEntry;
+		firstEntry.Format("%s\t%s", hotkeys[i].key, hotkeys[i].description);
+	
+		if (strlen(hotkeys[i].description) >= maxFirstColumnLength || (i + 1) >= numHotkeys)
+		{
+			// Only one entry on this line
+			text += firstEntry;
+			text += "\t";
+			text += NEWLINE;
+		}
+		else
+		{
+			// Two entries per line
+			CString secondEntry;
+			secondEntry.Format("%s\t%s", hotkeys[i + 1].key, hotkeys[i + 1].description);
+	
+			text += firstEntry;
+			text += "\t"; // space between columns
+			text += secondEntry;
+			text += "\t";
+			text += NEWLINE;
+	
+			i++; // skip the next one because we already used it
+		}
+	}
+	
+	pEdit->SetWindowText(text);	
 }
+
 
 /////////////////////////////////////////////////////////////////////////////
 // CWorldBuilderApp message handlers
