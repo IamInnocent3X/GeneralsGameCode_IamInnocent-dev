@@ -930,8 +930,8 @@ GameMessageDisposition SelectionTranslator::translateGameMessage(const GameMessa
 
 			Bool isClick = TRUE;
 			if (isClick && 
-					abs(delta.x) > TheMouse->m_dragTolerance || 
-					abs(delta.y) > TheMouse->m_dragTolerance)
+					(abs(delta.x) > TheMouse->m_dragTolerance || 
+					abs(delta.y) > TheMouse->m_dragTolerance))
 			{
 				isClick = FALSE;
 			}

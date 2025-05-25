@@ -164,7 +164,7 @@ int Get_RDTSC_CPU_Speed(void)
 	** High-Resolution Counter with elapsed cycles on the Time Stamp Counter.
 	*/
 
-	do	{
+	while (true) {
 		/*
 		** This do loop runs up to 20 times or until the average of the previous
 		** three calculated frequencies is within 1 MHz of each of the individual
@@ -229,7 +229,15 @@ int Get_RDTSC_CPU_Speed(void)
 
 		total = ( freq + freq2 + freq3 );		// Total last three frequency calcs
 
-	} while ( (tries < 3 ) || (tries < 20) && (((3 * freq -total) > 3*TOLERANCE )|| ((3 * freq2-total) > 3*TOLERANCE )|| ((3 * freq3-total) > 3*TOLERANCE )));
+		if (tries < 3) {
+			continue;
+		} else if (tries < 20) {
+			if ((3 * freq - total > 3 * TOLERANCE) || (3 * freq2 - total > 3 * TOLERANCE) || (3 * freq3 - total > 3 * TOLERANCE)) {
+				continue;
+			}
+		}
+		break;
+	}
 
 	SetThreadPriority(thread, threadPri);
 	SetPriorityClass(process, processPri);
