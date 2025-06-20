@@ -897,7 +897,7 @@ Bool GameInfo::isSandbox(void)
 
 static const char slotListID		= 'S';
 
-static Bool BuildPlayerNamesWithTruncate(AsciiStringVec& playerNames, const GameInfo& game, UnsignedInt truncateAmount)
+static void BuildPlayerNames(AsciiStringVec& playerNames, const GameInfo& game)
 {
 	for (Int i = 0; i < MAX_SLOTS; ++i)
 	{
@@ -911,11 +911,14 @@ static Bool BuildPlayerNamesWithTruncate(AsciiStringVec& playerNames, const Game
 			playerNames[i] = AsciiString::TheEmptyString;
 		}
 	}
+}
 
+static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncateAmount)
+{
 	while (truncateAmount > 0)
 	{
 		Bool didTruncate = false;
-		for (Int i = 0; i < MAX_SLOTS && truncateAmount > 0; ++i)
+		for (Int i = 0; i < playerNames.size() && truncateAmount > 0; ++i)
 		{
 			// we won't truncate any names to shorter than 2 characters
 			if (playerNames[i].getLength() > 2)
@@ -1023,12 +1026,13 @@ AsciiString GameInfoToAsciiString(const GameInfo *game, const AsciiStringVec& pl
 
 AsciiString GameInfoToAsciiString(const GameInfo* game)
 {
-	AsciiStringVec playerNames(MAX_SLOTS);
-	if (!game || !BuildPlayerNamesWithTruncate(playerNames, *game, 0))
+	if (!game)
 	{
 		return AsciiString::TheEmptyString;
 	}
 
+	AsciiStringVec playerNames(MAX_SLOTS);
+	BuildPlayerNames(playerNames, *game);
 	AsciiString infoString = GameInfoToAsciiString(game, playerNames);
 
 	// TheSuperHackers @bugfix Safely truncate the game info string by
@@ -1036,7 +1040,7 @@ AsciiString GameInfoToAsciiString(const GameInfo* game)
 	if (infoString.getLength() > m_lanMaxOptionsLength)
 	{
 		const UnsignedInt truncateAmount = infoString.getLength() - m_lanMaxOptionsLength;
-		if (!BuildPlayerNamesWithTruncate(playerNames, *game, truncateAmount))
+		if (!TruncatePlayerNames(playerNames, truncateAmount))
 		{
 			DEBUG_LOG(("GameInfoToAsciiString - unable to truncate player names by %u characters.\n", truncateAmount));
 			return AsciiString::TheEmptyString;
