@@ -943,9 +943,9 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 	// Determine the average worst case name length we need to enforce to fit in the network packet
 	int availableSpaceInPacket = m_lanMaxOptionsLength - optionsString.getLength() - 1; // Include the trailing ';'
 	int numHumans = 0;
-	for (Int i = 0; i < MAX_SLOTS; ++i)
+	for (Int si = 0; si < MAX_SLOTS; ++si)
 	{
-		const GameSlot* slot = game->getConstSlot(i);
+		const GameSlot* slot = game->getConstSlot(si);
 		if (slot && slot->isHuman())
 		{
 			numHumans++;
