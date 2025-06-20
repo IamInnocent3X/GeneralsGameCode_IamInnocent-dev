@@ -923,7 +923,7 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 			newMapName.concat(token);
 			mapName.nextToken(&token, "\\/");
 		}
-		DEBUG_LOG(("Map name is %s\n", mapName.str()));
+		DEBUG_LOG(("Map name is %s\n", newMapName.str()));
 	}
 
 	AsciiString optionsString;
@@ -934,6 +934,35 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 	//add player info for each slot
 	optionsString.concat(slotListID);
 	optionsString.concat('=');
+
+	// The longest options string a human player can have looks like ",7fffffff,8088,FT,-1,-1,-1,-1,64:"
+	const int MaxPerHumanOptionsLength = 33 + 1; // Include the prefix 'H'
+	// The longest options string an AI can have looks like "CH,-1,-1,-1,-1:"
+	const int MaxPerAIOptionsLength = 15;
+
+	// Determine the average worst case name length we need to enforce to fit in the network packet
+	int availableSpaceInPacket = m_lanMaxOptionsLength - optionsString.getLength() - 1; // Include the trailing ';'
+	int numHumans = 0;
+	for (Int i = 0; i < MAX_SLOTS; ++i)
+	{
+		const GameSlot* slot = game->getConstSlot(i);
+		if (slot && slot->isHuman())
+		{
+			numHumans++;
+			availableSpaceInPacket -= MaxPerHumanOptionsLength;
+		}
+		else if (slot && slot->isAI())
+		{
+			availableSpaceInPacket -= MaxPerAIOptionsLength;
+		}
+		else
+		{
+			// "O:" or "X:"
+			availableSpaceInPacket -= 2;
+		}
+	}
+
+	int maxAvgNameLength = availableSpaceInPacket / numHumans;
 	for (Int i=0; i<MAX_SLOTS; ++i)
 	{
 		const GameSlot *slot = game->getConstSlot(i);
@@ -949,14 +978,17 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 				slot->getColor(), slot->getPlayerTemplate(),
 				slot->getStartPos(), slot->getTeamNumber(),
 				slot->getNATBehavior() );
+			// Adjust from estimated worst-case length. MaxPerHumanOptionsLength includes prefix 'H' so we need to subtract it here, too.
+			availableSpaceInPacket += MaxPerHumanOptionsLength - tmp.getLength() - 1;
+			maxAvgNameLength = availableSpaceInPacket / numHumans--;
 			//make sure name doesn't cause overflow of m_lanMaxOptionsLength
-			int lenCur = tmp.getLength() + optionsString.getLength() + 2;  //+2 for H and trailing ;
-			int lenRem = m_lanMaxOptionsLength - lenCur;  //length remaining before overflowing
-			int lenMax = lenRem / (MAX_SLOTS-i);  //share lenRem with all remaining slots
 			AsciiString name = WideCharStringToMultiByte(slot->getName().str()).c_str();
-			while( name.getLength() > lenMax )
+			while (name.getLength() > maxAvgNameLength)
+			{
 				name.removeLastChar();  //what a horrible way to truncate.  I hate AsciiString.
-			
+			}
+
+			availableSpaceInPacket -= name.getLength();
 			str.format( "H%s%s", name.str(), tmp.str() );
 		}
 		else if (slot && slot->isAI())
@@ -971,6 +1003,7 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 			str.format("C%c,%d,%d,%d,%d:", c,
 				slot->getColor(), slot->getPlayerTemplate(),
 				slot->getStartPos(), slot->getTeamNumber());
+			availableSpaceInPacket += MaxPerAIOptionsLength - str.getLength();
 		}
 		else if (slot && slot->getState() == SLOT_OPEN)
 		{
