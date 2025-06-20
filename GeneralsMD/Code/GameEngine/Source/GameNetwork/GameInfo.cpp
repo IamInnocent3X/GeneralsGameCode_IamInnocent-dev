@@ -897,7 +897,46 @@ Bool GameInfo::isSandbox(void)
 
 static const char slotListID		= 'S';
 
-AsciiString GameInfoToAsciiString( const GameInfo *game )
+static Bool BuildPlayerNamesWithTruncate(AsciiStringVec& playerNames, const GameInfo& game, UnsignedInt truncateAmount)
+{
+	for (Int i = 0; i < MAX_SLOTS; ++i)
+	{
+		const GameSlot* slot = game.getConstSlot(i);
+		if (slot && slot->isHuman())
+		{
+			playerNames[i] = WideCharStringToMultiByte(slot->getName().str()).c_str();
+		}
+		else
+		{
+			playerNames[i] = AsciiString::TheEmptyString;
+		}
+	}
+
+	while (truncateAmount > 0)
+	{
+		Bool didTruncate = false;
+		for (Int i = 0; i < MAX_SLOTS && truncateAmount > 0; ++i)
+		{
+			// we won't truncate any names to shorter than 2 characters
+			if (playerNames[i].getLength() > 2)
+			{
+				playerNames[i].removeLastChar();
+				truncateAmount--;
+				didTruncate = true;
+			}
+		}
+
+		if (!didTruncate)
+		{
+			// iterated through all names without finding any to truncate.
+			return false;
+		}
+	}
+
+	return true;
+}
+
+AsciiString GameInfoToAsciiString(const GameInfo *game, const AsciiStringVec& playerNames)
 {
 	if (!game)
 		return AsciiString::TheEmptyString;
@@ -934,35 +973,6 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 	//add player info for each slot
 	optionsString.concat(slotListID);
 	optionsString.concat('=');
-
-	// The longest options string a human player can have looks like ",7fffffff,8088,FT,-1,-1,-1,-1,64:"
-	const int MaxPerHumanOptionsLength = 33 + 1; // Include the prefix 'H'
-	// The longest options string an AI can have looks like "CH,-1,-1,-1,-1:"
-	const int MaxPerAIOptionsLength = 15;
-
-	// Determine the average worst case name length we need to enforce to fit in the network packet
-	int availableSpaceInPacket = m_lanMaxOptionsLength - optionsString.getLength() - 1; // Include the trailing ';'
-	int numHumans = 0;
-	for (Int si = 0; si < MAX_SLOTS; ++si)
-	{
-		const GameSlot* slot = game->getConstSlot(si);
-		if (slot && slot->isHuman())
-		{
-			numHumans++;
-			availableSpaceInPacket -= MaxPerHumanOptionsLength;
-		}
-		else if (slot && slot->isAI())
-		{
-			availableSpaceInPacket -= MaxPerAIOptionsLength;
-		}
-		else
-		{
-			// "O:" or "X:"
-			availableSpaceInPacket -= 2;
-		}
-	}
-
-	int maxAvgNameLength = availableSpaceInPacket / numHumans;
 	for (Int i=0; i<MAX_SLOTS; ++i)
 	{
 		const GameSlot *slot = game->getConstSlot(i);
@@ -970,26 +980,13 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 		AsciiString str;
 		if (slot && slot->isHuman())
 		{
-			AsciiString tmp;  //all this data goes after name
-			tmp.format( ",%X,%d,%c%c,%d,%d,%d,%d,%d:",
-				slot->getIP(), slot->getPort(),
-				(slot->isAccepted()?'T':'F'),
-				(slot->hasMap()?'T':'F'),
+			str.format( "H%s,%X,%d,%c%c,%d,%d,%d,%d,%d:",
+				playerNames[i].str(), slot->getIP(),
+				slot->getPort(), (slot->isAccepted() ? 'T' : 'F'),
+				(slot->hasMap() ? 'T' : 'F'),
 				slot->getColor(), slot->getPlayerTemplate(),
 				slot->getStartPos(), slot->getTeamNumber(),
-				slot->getNATBehavior() );
-			// Adjust from estimated worst-case length. MaxPerHumanOptionsLength includes prefix 'H' so we need to subtract it here, too.
-			availableSpaceInPacket += MaxPerHumanOptionsLength - tmp.getLength() - 1;
-			maxAvgNameLength = availableSpaceInPacket / numHumans--;
-			//make sure name doesn't cause overflow of m_lanMaxOptionsLength
-			AsciiString name = WideCharStringToMultiByte(slot->getName().str()).c_str();
-			while (name.getLength() > maxAvgNameLength)
-			{
-				name.removeLastChar();  //what a horrible way to truncate.  I hate AsciiString.
-			}
-
-			availableSpaceInPacket -= name.getLength();
-			str.format( "H%s%s", name.str(), tmp.str() );
+				slot->getNATBehavior());
 		}
 		else if (slot && slot->isAI())
 		{
@@ -1003,7 +1000,6 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 			str.format("C%c,%d,%d,%d,%d:", c,
 				slot->getColor(), slot->getPlayerTemplate(),
 				slot->getStartPos(), slot->getTeamNumber());
-			availableSpaceInPacket += MaxPerAIOptionsLength - str.getLength();
 		}
 		else if (slot && slot->getState() == SLOT_OPEN)
 		{
@@ -1022,11 +1018,38 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 	}
 	optionsString.concat(';');
 
-	DEBUG_ASSERTCRASH(!TheLAN || (optionsString.getLength() < m_lanMaxOptionsLength),
-		("WARNING: options string is longer than expected!  Length is %d, but max is %d!\n",
-		optionsString.getLength(), m_lanMaxOptionsLength));
-	
 	return optionsString;
+}
+
+AsciiString GameInfoToAsciiString(const GameInfo* game)
+{
+	AsciiStringVec playerNames(MAX_SLOTS);
+	if (!game || !BuildPlayerNamesWithTruncate(playerNames, *game, 0))
+	{
+		return AsciiString::TheEmptyString;
+	}
+
+	AsciiString infoString = GameInfoToAsciiString(game, playerNames);
+
+	// TheSuperHackers @bugfix Safely truncate the game info string by
+	// scrapping characters off of player names if the overall length is too large.
+	if (infoString.getLength() > m_lanMaxOptionsLength)
+	{
+		const UnsignedInt truncateAmount = infoString.getLength() - m_lanMaxOptionsLength;
+		if (!BuildPlayerNamesWithTruncate(playerNames, *game, truncateAmount))
+		{
+			DEBUG_LOG(("GameInfoToAsciiString - unable to truncate player names by %u characters.\n", truncateAmount));
+			return AsciiString::TheEmptyString;
+		}
+
+		infoString = GameInfoToAsciiString(game, playerNames);
+	}
+
+	DEBUG_ASSERTCRASH(!TheLAN || (infoString.getLength() < m_lanMaxOptionsLength),
+		("WARNING: options string is longer than expected!  Length is %d, but max is %d!\n",
+			infoString.getLength(), m_lanMaxOptionsLength));
+
+	return infoString;
 }
 
 static Int grabHexInt(const char *s)
