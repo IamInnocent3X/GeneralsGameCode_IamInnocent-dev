@@ -78,8 +78,9 @@ public:
 	UnsignedInt getPlaybackFrameCount() const { return m_playbackFrameCount; }			///< valid during playback only
 	void stopPlayback();															///< Stops playback.  Its fine to call this even if not playing back a file.
 	Bool simulateReplay(AsciiString filename);
-#if defined RTS_DEBUG || defined RTS_INTERNAL
+#if 1
 	Bool analyzeReplay( AsciiString filename );
+	void stopAnalysis();
 #endif
 	Bool isPlaybackInProgress() const;
 
