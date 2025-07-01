@@ -241,6 +241,12 @@ public:
 	void removeLastChar();
 
 	/**
+		Remove the final N characters in the string. If the string is empty,
+		do nothing.
+	*/
+	void removeLastNChars(UnsignedInt chars);
+
+	/**
 		Analogous to sprintf() -- this formats a string according to the
 		given sprintf-style format string (and the variable argument list)
 		and stores the result in self.
