@@ -927,7 +927,7 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 	UnsignedInt availableForTruncation = 0;
 
 	// make length+index pairs for the player names
-	std::vector<std::pair<Int, size_t>> lengthIndex;
+	std::vector<std::pair<Int, size_t> > lengthIndex;
 	lengthIndex.reserve(playerNames.size());
 	for (size_t pi = 0; pi < playerNames.size(); ++pi)
 	{
@@ -943,7 +943,7 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 	}
 
 	// sort based on length in descending order
-	std::sort(lengthIndex.begin(), lengthIndex.end(), std::greater<std::pair<Int, size_t>>());
+	std::sort(lengthIndex.begin(), lengthIndex.end(), std::greater<std::pair<Int, size_t> >());
 
 	// determine how long each of the player names should be
 	Int currentTargetLength = lengthIndex[0].first - 1;
