@@ -904,18 +904,14 @@ static const char slotListID		= 'S';
 static AsciiStringVec BuildPlayerNames(const GameInfo& game)
 {
 	AsciiStringVec playerNames;
-	playerNames.reserve(MAX_SLOTS);
+	playerNames.resize(MAX_SLOTS);
 
 	for (Int i = 0; i < MAX_SLOTS; ++i)
 	{
 		const GameSlot* slot = game.getConstSlot(i);
 		if (slot->isHuman())
 		{
-			playerNames.push_back(WideCharStringToMultiByte(slot->getName().str()).c_str());
-		}
-		else
-		{
-			playerNames.push_back(AsciiString::TheEmptyString);
+			playerNames[i] = WideCharStringToMultiByte(slot->getName().str()).c_str();
 		}
 	}
 
@@ -925,16 +921,17 @@ static AsciiStringVec BuildPlayerNames(const GameInfo& game)
 static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncateAmount)
 {
 	// wont truncate any name to below this length
-	const Int MinimumNameLength = 2;
+	CONSTEXPR const Int MinimumNameLength = 2;
 	UnsignedInt availableForTruncation = 0;
 
 	// make length+index pairs for the player names
-	std::vector<std::pair<Int, size_t> > lengthIndex;
-	lengthIndex.reserve(playerNames.size());
+	std::vector<LengthIndexPair> lengthIndex;
+	lengthIndex.resize(playerNames.size());
 	for (size_t pi = 0; pi < playerNames.size(); ++pi)
 	{
 		Int playerNameLength = playerNames[pi].getLength();
-		lengthIndex.push_back(std::make_pair(playerNameLength, pi));
+		lengthIndex[pi].Length = playerNameLength;
+		lengthIndex[pi].Index = pi;
 		availableForTruncation += std::max(0, playerNameLength - MinimumNameLength);
 	}
 
@@ -945,19 +942,18 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 	}
 
 	// sort based on length in descending order
-	std::sort(lengthIndex.begin(), lengthIndex.end(), std::greater<std::pair<Int, size_t> >());
+	std::sort(lengthIndex.begin(), lengthIndex.end(), std::greater<LengthIndexPair>());
 
 	// determine how long each of the player names should be
-	Int currentTargetLength = lengthIndex[0].first - 1;
+	Int currentTargetLength = lengthIndex[0].Length - 1;
 	while (truncateAmount > 0)
 	{
-		currentTargetLength = std::min<Int>(lengthIndex[0].first - 1, currentTargetLength);
 		for (size_t i = 0; i < lengthIndex.size(); ++i)
 		{
-			if (lengthIndex[i].first > currentTargetLength)
+			if (lengthIndex[i].Length > currentTargetLength)
 			{
-				Int truncateCurrent = std::min<Int>(truncateAmount, lengthIndex[i].first - currentTargetLength);
-				lengthIndex[i].first -= truncateCurrent;
+				Int truncateCurrent = std::min<Int>(truncateAmount, lengthIndex[i].Length - currentTargetLength);
+				lengthIndex[i].Length -= truncateCurrent;
 				truncateAmount -= truncateCurrent;
 			}
 
@@ -965,18 +961,30 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 			{
 				break;
 			}
+
+			if (lengthIndex[i].Length < currentTargetLength)
+			{
+				// set target length to either the length of position i, or the remaining amount to truncate divided across all the previous entries, rounding upwards.
+				currentTargetLength = std::max(static_cast<UnsignedInt>(lengthIndex[i].Length), lengthIndex[0].Length - ((truncateAmount + i) / (i + 1)));
+				// start over again with new target length
+				i = -1;
+				continue;
+			}
 		}
+
+		// All entries are of equal length, or we're finished. Figure out the length of all entries if truncated by the same amount, rounding upwards.
+		currentTargetLength = lengthIndex[0].Length - ((truncateAmount + lengthIndex.size() - 1) / lengthIndex.size());
 	}
 
 	// truncate each name to its new length
 	for (size_t ti = 0; ti < lengthIndex.size(); ++ti)
 	{
-		int charsToRemove = playerNames[lengthIndex[ti].second].getLength() - lengthIndex[ti].first;
+		int charsToRemove = playerNames[lengthIndex[ti].Index].getLength() - lengthIndex[ti].Length;
 		if (charsToRemove > 0)
 		{
-			DEBUG_LOG(("TruncatePlayerNames - truncating '%s' by %d chars to ", playerNames[lengthIndex[ti].second].str(), charsToRemove));
-			playerNames[lengthIndex[ti].second].truncate(charsToRemove);
-			DEBUG_LOG(("'%s' (target length=%d).\n", playerNames[lengthIndex[ti].second].str(), lengthIndex[ti].first));
+			DEBUG_LOG(("TruncatePlayerNames - truncating '%s' by %d chars to ", playerNames[lengthIndex[ti].Index].str(), charsToRemove));
+			playerNames[lengthIndex[ti].Index].truncate(charsToRemove);
+			DEBUG_LOG(("'%s' (target length=%d).\n", playerNames[lengthIndex[ti].Index].str(), lengthIndex[ti].Length));
 		}
 	}
 
@@ -1085,8 +1093,7 @@ AsciiString GameInfoToAsciiString(const GameInfo* game)
 		const UnsignedInt truncateAmount = infoString.getLength() - m_lanMaxOptionsLength;
 		if (!TruncatePlayerNames(playerNames, truncateAmount))
 		{
-			DEBUG_ASSERTCRASH(infoString.getLength() <= m_lanMaxOptionsLength,
-				("WARNING: options string is longer than expected!  Length is %d, but max is %d. Attempted to truncate player names by %u characters, but was unsuccessful!\n",
+			DEBUG_CRASH(("WARNING: options string is longer than expected! Length is %d, but max is %d. Attempted to truncate player names by %u characters, but was unsuccessful!\n",
 					infoString.getLength(), m_lanMaxOptionsLength, truncateAmount));
 			return AsciiString::TheEmptyString;
 		}
