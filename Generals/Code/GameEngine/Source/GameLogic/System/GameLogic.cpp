@@ -287,7 +287,7 @@ void GameLogic::setDefaults( Bool saveGame )
 Bool GameLogic::isInSinglePlayerGame( void )
 {
 	return (m_gameMode == GAME_SINGLE_PLAYER ||
-		(TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_PLAYBACK && TheRecorder->getGameMode() == GAME_SINGLE_PLAYER));
+		(TheRecorder && TheRecorder->isPlaybackMode() && TheRecorder->getGameMode() == GAME_SINGLE_PLAYER));
 }
 
 
@@ -794,9 +794,11 @@ static void populateRandomStartPosition( GameInfo *game )
 	Int i;
 	Int numPlayers = MAX_SLOTS;
 	const MapMetaData *md = TheMapCache->findMap( game->getMap() );
-  DEBUG_ASSERTCRASH( md , ("Could not find map %s in the mapcache", game->getMap().str()));
 	if (md)
 		numPlayers = md->m_numPlayers;
+	else
+		printf("Could not find map \"%s\"\n", game->getMap().str());
+	DEBUG_ASSERTCRASH( md , ("Could not find map %s in the mapcache", game->getMap().str()));
 
 	// generate a map of start spot distances
 	Real startSpotDistance[MAX_SLOTS][MAX_SLOTS];
@@ -1086,7 +1088,7 @@ void GameLogic::startNewGame( Bool saveGame )
 	}
 	else
 	{
-		if (TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_PLAYBACK)
+		if (TheRecorder && TheRecorder->isPlaybackMode())
 		{
 			TheGameInfo = game = TheRecorder->getGameInfo();
 		}
@@ -1130,7 +1132,7 @@ void GameLogic::startNewGame( Bool saveGame )
 	//****************************//
 
 	// Get the m_loadScreen for this kind of game
-	if(!m_loadScreen)
+	if(!m_loadScreen && !(TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_SIMULATION_PLAYBACK))
 	{
 		m_loadScreen = getLoadScreen( saveGame );
 		if(m_loadScreen && !TheGlobalData->m_headless)
@@ -1914,7 +1916,7 @@ void GameLogic::startNewGame( Bool saveGame )
 	}
 
 	// if we're in a load game, don't fade yet
-	if(saveGame == FALSE && TheTransitionHandler != NULL)
+	if(saveGame == FALSE && TheTransitionHandler != NULL && m_loadScreen)
 	{
 		TheTransitionHandler->setGroup("FadeWholeScreen");
 		while(!TheTransitionHandler->isFinished())
@@ -2353,19 +2355,30 @@ void GameLogic::selectObject(Object *obj, Bool createNewSelection, PlayerMaskTyp
 			return;
 		}
 
-		AIGroup *group = NULL;
 		CRCGEN_LOG(( "Creating AIGroup in GameLogic::selectObject()\n" ));
-		group = TheAI->createGroup();
+		AIGroupPtr group = TheAI->createGroup();
 		group->add(obj);
 
 		// add all selected agents to the AI group
 		if (createNewSelection)	{
+#if RETAIL_COMPATIBLE_AIGROUP
 			player->setCurrentlySelectedAIGroup(group);
+#else
+			player->setCurrentlySelectedAIGroup(group.Peek());
+#endif
 		} else {
+#if RETAIL_COMPATIBLE_AIGROUP
 			player->addAIGroupToCurrentSelection(group);
+#else
+			player->addAIGroupToCurrentSelection(group.Peek());
+#endif
 		}
 
+#if RETAIL_COMPATIBLE_AIGROUP
 		TheAI->destroyGroup(group);
+#else
+		group->removeAll();
+#endif
 
 		if (affectClient) {
 			Drawable *draw = obj->getDrawable();
@@ -2390,25 +2403,28 @@ void GameLogic::deselectObject(Object *obj, PlayerMaskType playerMask, Bool affe
 			return;
 		}
 
-		AIGroup *group = NULL;
 		CRCGEN_LOG(( "Removing a unit from a selected group in GameLogic::deselectObject()\n" ));
-		group = TheAI->createGroup();
+		AIGroupPtr group = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 		player->getCurrentSelectionAsAIGroup(group);
-		
-		Bool deleted = FALSE;
-		Bool actuallyRemoved = FALSE;
-		
+#else
+		player->getCurrentSelectionAsAIGroup(group.Peek());
+#endif
+
 		if (group) {
-			deleted = group->remove(obj);
-			actuallyRemoved = TRUE;
-		}
-		
-		if (actuallyRemoved) {
+			Bool emptied = group->remove(obj);
+
 			// Set this to be the currently selected group.
-			if (!deleted) {
+			if (!emptied) {
+#if RETAIL_COMPATIBLE_AIGROUP
 				player->setCurrentlySelectedAIGroup(group);
 				// Then, cleanup the group.
 				TheAI->destroyGroup(group);
+#else
+				player->setCurrentlySelectedAIGroup(group.Peek());
+				// Then, cleanup the group.
+				group->removeAll();
+#endif
 			} else {
 				// NULL will clear the group.
 				player->setCurrentlySelectedAIGroup(NULL);
@@ -3168,20 +3184,21 @@ void GameLogic::update( void )
 	if (generateForSolo || generateForMP)
 	{
 		m_CRC = getCRC( CRC_RECALC );
-		if (isMPGameOrReplay)
-		{
-			GameMessage *msg = TheMessageStream->appendMessage( GameMessage::MSG_LOGIC_CRC );
-			msg->appendIntegerArgument( m_CRC );
-			msg->appendBooleanArgument( (TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_PLAYBACK) ); // playback CRC
-			DEBUG_LOG(("Appended CRC on frame %d: %8.8X\n", m_frame, m_CRC));
-		}
-		else
-		{
-			GameMessage *msg = TheMessageStream->appendMessage( GameMessage::MSG_LOGIC_CRC );
-			msg->appendIntegerArgument( m_CRC );
-			msg->appendBooleanArgument( (TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_PLAYBACK) ); // playback CRC
-			DEBUG_LOG(("Appended Playback CRC on frame %d: %8.8X\n", m_frame, m_CRC));
-		}
+		bool isPlayback = (TheRecorder && TheRecorder->isPlaybackMode());
+
+		GameMessage *msg = newInstance(GameMessage)(GameMessage::MSG_LOGIC_CRC);
+		msg->appendIntegerArgument(m_CRC);
+		msg->appendBooleanArgument(isPlayback);
+
+		// TheSuperHackers @info helmutbuhler 13/04/2025
+		// During replay simulation, we bypass TheMessageStream and instead put the CRC message
+		// directly into TheCommandList because we don't update TheMessageStream during simulation.
+		GameMessageList *messageList = TheMessageStream;
+		if (TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_SIMULATION_PLAYBACK)
+			messageList = TheCommandList;
+		messageList->appendMessage(msg);
+
+		DEBUG_LOG(("Appended %sCRC on frame %d: %8.8X\n", isPlayback ? "Playback " : "", m_frame, m_CRC));
 	}
 
 	// collect stats

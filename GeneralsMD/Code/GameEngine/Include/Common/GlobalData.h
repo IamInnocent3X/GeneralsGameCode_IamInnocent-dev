@@ -54,7 +54,8 @@ enum AIDebugOptions CPP_11(: Int);
 
 // PUBLIC /////////////////////////////////////////////////////////////////////////////////////////
 
-const Int MAX_GLOBAL_LIGHTS	= 3;
+CONSTEXPR const Int MAX_GLOBAL_LIGHTS = 3;
+CONSTEXPR const Int SIMULATE_REPLAYS_SEQUENTIAL = -1;
 
 //-------------------------------------------------------------------------------------------------
 class CommandLineData
@@ -75,7 +76,7 @@ class CommandLineData
 /** Global data container class
   *	Defines all global game data used by the system
 	* @todo Change this entire system. Otherwise this will end up a huge class containing tons of variables,
-	* and will cause re-compilation dependancies throughout the codebase. 
+	* and will cause re-compilation dependencies throughout the code base. 
   * OOPS -- TOO LATE! :) */
 //-------------------------------------------------------------------------------------------------
 class GlobalData : public SubsystemInterface
@@ -347,8 +348,11 @@ public:
 	Real m_cameraAdjustSpeed;					///< Rate at which we adjust camera height
 	Bool m_enforceMaxCameraHeight;		///< Enfoce max camera height while scrolling?
 	Bool m_buildMapCache;
-	AsciiString m_initialFile;				///< If this is specified, load a specific map/replay from the command-line
+	AsciiString m_initialFile;				///< If this is specified, load a specific map from the command-line
 	AsciiString m_pendingFile;				///< If this is specified, use this map at the next game start
+	
+	std::vector<AsciiString> m_simulateReplays; ///< If not empty, simulate this list of replays and exit.
+	Int m_simulateReplayJobs; ///< Maximum number of processes to use for simulation, or SIMULATE_REPLAYS_SEQUENTIAL for sequential simulation
 
 	Int m_maxParticleCount;						///< maximum number of particles that can exist
 	Int m_maxFieldParticleCount;			///< maximum number of field-type particles that can exist (roughly)
@@ -549,6 +553,8 @@ public:
 
 private:
 
+	static UnsignedInt generateExeCRC();
+
 	static const FieldParse s_GlobalDataFieldParseTable[];
 
 	// this is private, since we read the info from Windows and cache it for
@@ -573,6 +579,11 @@ private:
 // singleton
 extern GlobalData* TheWritableGlobalData;
 
+// use TheGlobalData for all read-only accesses
+#if __cplusplus >= 201703L
+inline const GlobalData* const& TheGlobalData = TheWritableGlobalData;
+#else
 #define TheGlobalData ((const GlobalData*)TheWritableGlobalData)
+#endif
 
 #endif

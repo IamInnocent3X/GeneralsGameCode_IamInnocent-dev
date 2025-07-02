@@ -394,12 +394,15 @@ void ScriptActions::doMoveToWaypoint(const AsciiString& team, const AsciiString&
 	// The team is the team based on the name, and the calling team (if any) and the team that
 	// triggered the condition.  jba. :)
 	if (theTeam) {
-		AIGroup* theGroup = TheAI->createGroup();
+		AIGroupPtr theGroup = TheAI->createGroup();
 		if (!theGroup) {
 			return;
 		}
-
+#if RETAIL_COMPATIBLE_AIGROUP
 		theTeam->getTeamAsAIGroup(theGroup);
+#else
+		theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 		Waypoint *way = TheTerrainLogic->getWaypointByName(waypoint);
 		if (way) {
 			Coord3D destination = *way->getLocation();
@@ -756,12 +759,16 @@ void ScriptActions::doCreateReinforcements(const AsciiString& team, const AsciiS
 			theTeam->setActive();
 			if (needToMoveToDestination) 
 			{
-				AIGroup* theGroup = TheAI->createGroup();
+				AIGroupPtr theGroup = TheAI->createGroup();
 				if (!theGroup) 
 				{
 					return;
 				}
+#if RETAIL_COMPATIBLE_AIGROUP
 				theTeam->getTeamAsAIGroup(theGroup);
+#else
+				theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 				theGroup->groupMoveToPosition( &destination, false, CMD_FROM_SCRIPT );
 			}
 		}
@@ -1015,12 +1022,16 @@ void ScriptActions::doAttack(const AsciiString& attackerName, const AsciiString&
 	if( attackingTeam == NULL || victimTeam == NULL )
 		return;
 
-	AIGroup *aiGroup = TheAI->createGroup();
+	AIGroupPtr aiGroup = TheAI->createGroup();
 	if (!aiGroup) {
 		return;
 	}
 
+#if RETAIL_COMPATIBLE_AIGROUP
 	attackingTeam->getTeamAsAIGroup(aiGroup);
+#else
+	attackingTeam->getTeamAsAIGroup(aiGroup.Peek());
+#endif
 	aiGroup->groupAttackTeam(victimTeam, NO_MAX_SHOTS_LIMIT, CMD_FROM_SCRIPT);
 
 }
@@ -1260,12 +1271,16 @@ void ScriptActions::updateTeamSetAttitude(const AsciiString& teamName, Int attit
 		return;
 	}
 
-	AIGroup *pAIGroup = TheAI->createGroup();
+	AIGroupPtr pAIGroup = TheAI->createGroup();
 	if (!pAIGroup) {
 		return;
 	}
 
+#if RETAIL_COMPATIBLE_AIGROUP
 	theSrcTeam->getTeamAsAIGroup(pAIGroup);
+#else
+	theSrcTeam->getTeamAsAIGroup(pAIGroup.Peek());
+#endif
 	pAIGroup->setAttitude((AttitudeType) attitude);
 }
 
@@ -1369,12 +1384,16 @@ void ScriptActions::doTeamAttackArea(const AsciiString& teamName, const AsciiStr
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
 
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	PolygonTrigger *pTrig = TheScriptEngine->getQualifiedTriggerAreaByName(areaName);
 	if (!pTrig) {
@@ -1401,12 +1420,16 @@ void ScriptActions::doTeamAttackNamed(const AsciiString& teamName, const AsciiSt
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
 
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupAttackObject(theVictim, NO_MAX_SHOTS_LIMIT, CMD_FROM_SCRIPT);
 }
 
@@ -1508,9 +1531,13 @@ void ScriptActions::doTeamEnterNamed(const AsciiString& teamName, const AsciiStr
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
-	theSrcTeam->getTeamAsAIGroup(theGroup);
+	AIGroupPtr theGroup = TheAI->createGroup();
 
+#if RETAIL_COMPATIBLE_AIGROUP
+	theSrcTeam->getTeamAsAIGroup(theGroup);
+#else
+	theSrcTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupEnter(theTransport, CMD_FROM_SCRIPT);
 }
 
@@ -1544,9 +1571,13 @@ void ScriptActions::doTeamExitAll(const AsciiString& teamName)
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
-	theTeamOfTransports->getTeamAsAIGroup(theGroup);
+	AIGroupPtr theGroup = TheAI->createGroup();
 
+#if RETAIL_COMPATIBLE_AIGROUP
+	theTeamOfTransports->getTeamAsAIGroup(theGroup);
+#else
+	theTeamOfTransports->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupEvacuate( CMD_FROM_SCRIPT );
 }
 
@@ -1614,11 +1645,15 @@ void ScriptActions::doTeamFollowSkirmishApproachPath(const AsciiString& teamName
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	Int count = 0;
 	Coord3D pos;
 	pos.x=pos.y=pos.z=0;
@@ -1677,11 +1712,15 @@ void ScriptActions::doTeamMoveToSkirmishApproachPath(const AsciiString& teamName
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	Int count = 0;
 	Coord3D pos;
 	pos.x=pos.y=pos.z=0;
@@ -1725,11 +1764,15 @@ void ScriptActions::doTeamFollowWaypoints(const AsciiString& teamName, const Asc
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	Int count = 0;
 	Coord3D pos;
 	pos.x=pos.y=pos.z=0;
@@ -1772,11 +1815,15 @@ void ScriptActions::doTeamFollowWaypointsExact(const AsciiString& teamName, cons
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	Int count = 0;
 	Coord3D pos;
 	pos.x=pos.y=pos.z=0;
@@ -1864,11 +1911,15 @@ void ScriptActions::doTeamGuardPosition(const AsciiString& teamName, const Ascii
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	Coord3D position = *way->getLocation();
 
 	theGroup->groupGuardPosition( &position, GUARDMODE_NORMAL, CMD_FROM_SCRIPT );
@@ -1885,12 +1936,15 @@ void ScriptActions::doTeamGuardObject(const AsciiString& teamName, const AsciiSt
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
-
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupGuardObject( theUnit, GUARDMODE_NORMAL, CMD_FROM_SCRIPT );
 }
 
@@ -1905,12 +1959,15 @@ void ScriptActions::doTeamGuardArea(const AsciiString& teamName, const AsciiStri
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
-
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupGuardArea( pTrig, GUARDMODE_NORMAL, CMD_FROM_SCRIPT );
 }
 
@@ -1943,12 +2000,15 @@ void ScriptActions::doTeamHunt(const AsciiString& teamName)
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
-
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupHunt( CMD_FROM_SCRIPT );
 }
 //-------------------------------------------------------------------------------------------------
@@ -2551,6 +2611,7 @@ void ScriptActions::doCameoFlash(const AsciiString& name, Int timeInSeconds)
 	if( button == NULL )
 	{
 		DEBUG_CRASH(( "ScriptActions::doCameoFlash can't find AsciiString cameoflash" ));
+		return;
 	}
 
 	Int frames = LOGICFRAMES_PER_SECOND * timeInSeconds;
@@ -3241,12 +3302,15 @@ void ScriptActions::doTeamGarrisonSpecificBuilding(const AsciiString& teamName, 
 		return;
 	}
 	
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
-	
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupEnter(theBuilding, CMD_FROM_SCRIPT);
 }
 
@@ -4081,14 +4145,17 @@ void ScriptActions::doTeamUseCommandButtonAbility( const AsciiString& team, cons
 	}
 
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if( !theGroup ) 
 	{
 		return;
 	}
 
-	theTeam->getTeamAsAIGroup( theGroup );
-	
+#if RETAIL_COMPATIBLE_AIGROUP
+	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupDoCommandButton( commandButton, CMD_FROM_SCRIPT );
 }
 
@@ -4116,14 +4183,17 @@ void ScriptActions::doTeamUseCommandButtonAbilityOnNamed( const AsciiString& tea
 	}
 
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if( !theGroup ) 
 	{
 		return;
 	}
 
-	theTeam->getTeamAsAIGroup( theGroup );
-	
+#if RETAIL_COMPATIBLE_AIGROUP
+	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupDoCommandButtonAtObject( commandButton, theObj, CMD_FROM_SCRIPT );
 }
 
@@ -4151,14 +4221,17 @@ void ScriptActions::doTeamUseCommandButtonAbilityAtWaypoint( const AsciiString& 
 	}
 
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if( !theGroup ) 
 	{
 		return;
 	}
 
-	theTeam->getTeamAsAIGroup( theGroup );
-	
+#if RETAIL_COMPATIBLE_AIGROUP
+	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupDoCommandButtonAtPosition( commandButton, pWaypoint->getLocation(), CMD_FROM_SCRIPT );
 }
 
@@ -4235,12 +4308,15 @@ void ScriptActions::doTeamStop(const AsciiString& teamName, Bool shouldDisband)
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
-
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupIdle(CMD_FROM_SCRIPT);
 
 	if (shouldDisband) {
@@ -4448,12 +4524,15 @@ void ScriptActions::doTeamStartSequentialScript(const AsciiString& teamName, con
 	}
 
 	// Idle the team so the seq script will start executing. jba.
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
-
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	theGroup->groupIdle(CMD_FROM_SCRIPT);
 
 
@@ -4555,12 +4634,15 @@ void ScriptActions::doTeamIdleForFramecount(const AsciiString& teamName, Int fra
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if (!theGroup) {
 		return;
 	}
-
+#if RETAIL_COMPATIBLE_AIGROUP
 	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	Coord3D center;
 	theGroup->getCenter(&center);
 
@@ -4941,8 +5023,12 @@ void ScriptActions::doSkirmishAttackNearestGroupWithValue( const AsciiString& te
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	Player *player = team->getControllingPlayer();
 
@@ -4970,8 +5056,12 @@ void ScriptActions::doSkirmishCommandButtonOnMostValuable( const AsciiString& te
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	Player *player = team->getControllingPlayer();
 	if (!player)
@@ -5033,8 +5123,12 @@ void ScriptActions::doTeamUseCommandButtonOnNamed( const AsciiString& teamName, 
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	const CommandButton *commandButton = TheControlBar->findCommandButton(commandAbility);
 	if(!commandButton) {
@@ -5072,8 +5166,12 @@ void ScriptActions::doTeamUseCommandButtonOnNearestEnemy( const AsciiString& tea
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	const CommandButton *commandButton = TheControlBar->findCommandButton(commandAbility);
 	if(!commandButton) {
@@ -5118,8 +5216,12 @@ void ScriptActions::doTeamUseCommandButtonOnNearestGarrisonedBuilding( const Asc
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	const CommandButton *commandButton = TheControlBar->findCommandButton(commandAbility);
 	if(!commandButton) {
@@ -5166,8 +5268,12 @@ void ScriptActions::doTeamUseCommandButtonOnNearestKindof( const AsciiString& te
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	const CommandButton *commandButton = TheControlBar->findCommandButton(commandAbility);
 	if (!commandButton) {
@@ -5213,8 +5319,12 @@ void ScriptActions::doTeamUseCommandButtonOnNearestBuilding( const AsciiString& 
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	const CommandButton *commandButton = TheControlBar->findCommandButton(commandAbility);
 	if (!commandButton) {
@@ -5260,8 +5370,12 @@ void ScriptActions::doTeamUseCommandButtonOnNearestBuildingClass( const AsciiStr
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	const CommandButton *commandButton = TheControlBar->findCommandButton(commandAbility);
 	if (!commandButton) {
@@ -5308,8 +5422,12 @@ void ScriptActions::doTeamUseCommandButtonOnNearestObjectType( const AsciiString
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	const CommandButton *commandButton = TheControlBar->findCommandButton(commandAbility);
 	if (!commandButton) {
@@ -5399,8 +5517,12 @@ void ScriptActions::doTeamCaptureNearestUnownedFactionUnit( const AsciiString& t
 		return;
 	}
 
-	AIGroup *theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
+#if RETAIL_COMPATIBLE_AIGROUP
 	team->getTeamAsAIGroup(theGroup);
+#else
+	team->getTeamAsAIGroup(theGroup.Peek());
+#endif
 
 	PartitionFilterPlayerAffiliation f1(team->getControllingPlayer(), ALLOW_ENEMIES | ALLOW_NEUTRAL, true);
 	PartitionFilterUnmannedObject f2(true);
@@ -5515,12 +5637,16 @@ void ScriptActions::doTeamEmoticon(const AsciiString& teamName, const AsciiStrin
 		return;
 	}
 
-	AIGroup* theGroup = TheAI->createGroup();
+	AIGroupPtr theGroup = TheAI->createGroup();
 	if( !theGroup ) 
 	{
 		return;
 	}
-	theTeam->getTeamAsAIGroup( theGroup );
+#if RETAIL_COMPATIBLE_AIGROUP
+	theTeam->getTeamAsAIGroup(theGroup);
+#else
+	theTeam->getTeamAsAIGroup(theGroup.Peek());
+#endif
 	
 	Int frames = (Int)( duration * LOGICFRAMES_PER_SECOND );
 	theGroup->groupSetEmoticon( emoticonName, frames );
