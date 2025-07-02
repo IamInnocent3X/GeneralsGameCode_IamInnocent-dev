@@ -973,7 +973,7 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 		if (charsToRemove > 0)
 		{
 			DEBUG_LOG(("TruncatePlayerNames - truncating '%s' by %d chars to ", playerNames[lengthIndex[ti].second].str(), charsToRemove));
-			playerNames[lengthIndex[ti].second].removeLastNChars(charsToRemove);
+			playerNames[lengthIndex[ti].second].truncate(charsToRemove);
 			DEBUG_LOG(("'%s' (target length=%d).\n", playerNames[lengthIndex[ti].second].str(), lengthIndex[ti].first));
 		}
 	}
