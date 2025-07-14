@@ -279,6 +279,7 @@ void        GameInfo::setOldFactionsOnly( Bool oldFactionsOnly ) { m_oldFactions
 AsciiString GameInfoToAsciiString( const GameInfo *game );
 Bool ParseAsciiStringToGameInfo( GameInfo *game, AsciiString options );
 
+
 /**
   * The SkirmishGameInfo class holds information about the skirmish game and
 	* the contents of its slot list.
