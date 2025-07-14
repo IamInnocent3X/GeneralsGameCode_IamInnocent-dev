@@ -894,6 +894,21 @@ Bool GameInfo::isSandbox(void)
 
 static const char slotListID		= 'S';
 
+struct LengthIndexPair
+{
+	Int Length;
+	size_t Index;
+	friend bool operator<(const LengthIndexPair& lhs, const LengthIndexPair& rhs)
+	{
+		if (lhs.Length == rhs.Length)
+			return lhs.Index < rhs.Index;
+		return lhs.Length < rhs.Length;
+	}
+	friend bool operator>(const LengthIndexPair& lhs, const LengthIndexPair& rhs) { return rhs < lhs; }
+	friend bool operator<=(const LengthIndexPair& lhs, const LengthIndexPair& rhs) { return !(lhs > rhs); }
+	friend bool operator>=(const LengthIndexPair& lhs, const LengthIndexPair& rhs) { return !(lhs < rhs); }
+};
+
 static AsciiStringVec BuildPlayerNames(const GameInfo& game)
 {
 	AsciiStringVec playerNames;
@@ -937,47 +952,35 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 	// sort based on length in descending order
 	std::sort(lengthIndex.begin(), lengthIndex.end(), std::greater<LengthIndexPair>());
 
-	// determine how long each of the player names should be
-	Int currentTargetLength = lengthIndex[0].Length - 1;
-	while (truncateAmount > 0)
+	for (size_t i = 0; i < lengthIndex.size(); ++i)
 	{
-		for (size_t i = 0; i < lengthIndex.size(); ++i)
+		size_t remainingEntries = lengthIndex.size() - i;
+		// determine average length based on the total amount of characters available for truncation and how many are remaining to be removed
+		int avgLengthForRemaining = ((availableForTruncation - truncateAmount) + (remainingEntries * MinimumNameLength)) / remainingEntries;
+		if (lengthIndex[i].Length > avgLengthForRemaining)
 		{
-			if (lengthIndex[i].Length > currentTargetLength)
-			{
-				Int truncateCurrent = std::min<Int>(truncateAmount, lengthIndex[i].Length - currentTargetLength);
-				lengthIndex[i].Length -= truncateCurrent;
-				truncateAmount -= truncateCurrent;
-			}
-
-			if (truncateAmount == 0)
-			{
-				break;
-			}
-
-			if (lengthIndex[i].Length < currentTargetLength)
-			{
-				// set target length to either the length of position i, or the remaining amount to truncate divided across all the previous entries, rounding upwards.
-				currentTargetLength = std::max(static_cast<UnsignedInt>(lengthIndex[i].Length), lengthIndex[0].Length - ((truncateAmount + i) / (i + 1)));
-				// start over again with new target length
-				i = -1;
-				continue;
-			}
+			int truncateCurrent = lengthIndex[i].Length - avgLengthForRemaining;
+			playerNames[lengthIndex[i].Index].truncateBy(truncateCurrent);
+			truncateAmount -= truncateCurrent;
 		}
 
-		// All entries are of equal length, or we're finished. Figure out the length of all entries if truncated by the same amount, rounding upwards.
-		currentTargetLength = lengthIndex[0].Length - ((truncateAmount + lengthIndex.size() - 1) / lengthIndex.size());
+		availableForTruncation -= lengthIndex[i].Length - MinimumNameLength;
+
+		if (truncateAmount == 0)
+		{
+			break;
+		}
 	}
 
-	// truncate each name to its new length
-	for (size_t ti = 0; ti < lengthIndex.size(); ++ti)
+	// ensure there are no duplicates in the truncated names
+	std::set<AsciiString> uniqueNames;
+	for (size_t ni = 0; ni < playerNames.size(); ++ni)
 	{
-		int charsToRemove = playerNames[lengthIndex[ti].Index].getLength() - lengthIndex[ti].Length;
-		if (charsToRemove > 0)
+		while (!uniqueNames.insert(playerNames[ni]).second)
 		{
-			DEBUG_LOG(("TruncatePlayerNames - truncating '%s' by %d chars to ", playerNames[lengthIndex[ti].Index].str(), charsToRemove));
-			playerNames[lengthIndex[ti].Index].truncateBy(charsToRemove);
-			DEBUG_LOG(("'%s' (target length=%d).", playerNames[lengthIndex[ti].Index].str(), lengthIndex[ti].Length));
+			// the name already exists, change the last char to a random between a and z to ensure differentiation
+			playerNames[ni].removeLastChar();
+			playerNames[ni].concat(GameClientRandomValue('a', 'z'));
 		}
 	}
 
