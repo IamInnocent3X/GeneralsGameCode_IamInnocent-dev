@@ -73,6 +73,7 @@ void GameSlot::reset()
 	m_origPlayerTemplate = -1;
 	m_origStartPos = -1;
 	m_origColor = -1;
+	m_patchVersion = 0;
 }
 
 void GameSlot::saveOffOriginalInfo( void )
