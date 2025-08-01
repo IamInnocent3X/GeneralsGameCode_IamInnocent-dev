@@ -923,11 +923,13 @@ AsciiString GameInfoToAsciiString( const GameInfo *game )
 	}
 
 	UnsignedByte patchedClients = 0;
-	for (Int i = 0; i < MAX_SLOTS; ++i)
 	{
-		const GameSlot* slot = game->getConstSlot(i);
-		if (slot && slot->isHuman() && (i == game->getLocalSlotNum() || slot->getPatchVersion() >= 1337))
-			patchedClients |= (1 << i);
+		for (Int i = 0; i < MAX_SLOTS; ++i)
+		{
+			const GameSlot* slot = game->getConstSlot(i);
+			if (slot && slot->isHuman() && (i == game->getLocalSlotNum() || slot->getPatchVersion() >= 1337))
+				patchedClients |= (1 << i);
+		}
 	}
 
 	AsciiString statsString;
