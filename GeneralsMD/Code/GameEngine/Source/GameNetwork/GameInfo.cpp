@@ -1064,7 +1064,7 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 			useStats = atoi(val.str());
 			sawUseStats = true;
 
-			if (val.getLength() == 5 && val.getCharAt(2) == 'P' && val.getCharAt(4) == 'P')
+			if (val.getLength() >= 5 && val.getCharAt(2) == 'P' && val.getCharAt(4) == 'P')
 				patchedClients = val.getCharAt(3);
 		}
 		else
