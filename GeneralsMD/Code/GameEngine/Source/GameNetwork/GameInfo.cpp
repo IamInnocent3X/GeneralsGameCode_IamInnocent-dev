@@ -1501,7 +1501,7 @@ Bool ParseAsciiStringToGameInfo(GameInfo *game, AsciiString options)
 			if (patchedClients & (1 << i))
 				newSlot[i].setPatchVersion(1337);
 
-			game->setSlot(i, newSlot[i]);
+			game->setSlot(i,newSlot[i]);
 		}
 
 		game->setMap(mapName);
