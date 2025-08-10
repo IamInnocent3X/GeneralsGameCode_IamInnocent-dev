@@ -348,8 +348,6 @@ void LANAPI::handleRequestJoin( LANMessage *msg, UnsignedInt senderIP )
 						newSlot.setPort(NETWORK_BASE_PORT_NUMBER);
 						newSlot.setLastHeard(timeGetTime());
 						newSlot.setSerial(msg->GameToJoin.serial);
-						if (msg->GameToJoin.patchVersion == 1337)
-							newSlot.setPatchVersion(msg->GameToJoin.patchVersion);
 						m_currentGame->setSlot(player,newSlot);
 						DEBUG_LOG(("LANAPI::handleRequestJoin - added player %ls at ip 0x%08x to the game", msg->name, senderIP));
 
@@ -683,4 +681,59 @@ void LANAPI::handleInActive(LANMessage *msg, UnsignedInt senderIP) {
 	AsciiString options = GenerateGameOptionsString();
 	RequestGameOptions(options, FALSE);
 	lanUpdateSlotList();
+}
+
+void LANAPI::handlePatchVersion(LANMessage* msg, UnsignedInt senderIP)
+{
+	if (m_inLobby)
+	{
+		LANPlayer *player = m_lobbyPlayers;
+		while (player)
+		{
+			if (player->getIP() == senderIP)
+			{
+				if (!player->getPatchVersion() && msg->PatchInfo.patchVersion > 0)
+				{
+					player->setPatchVersion(msg->PatchInfo.patchVersion);
+					OnPlayerList(m_lobbyPlayers);
+				}
+				break;
+			}
+
+			player = player->getNext();
+		}
+
+		LANGameInfo* game = m_games;
+		while (game)
+		{
+			GameSlot *slot = game->getSlot(0);
+			if (slot->getIP() == senderIP)
+			{
+				DEBUG_ASSERTCRASH(game->getHostIP() == slot->getIP(), ("First game slot is not used by the host"));
+
+				if (!slot->getPatchVersion() && msg->PatchInfo.patchVersion > 0)
+				{
+					slot->setPatchVersion(msg->PatchInfo.patchVersion);
+					OnGameList(m_games);
+				}
+				break;
+			}
+
+			game = game->getNext();
+		}
+	}
+	else if (m_currentGame && !m_currentGame->isGameInProgress())
+	{
+		for (int player = 0; player < MAX_SLOTS; ++player)
+		{
+			if (m_currentGame->getIP(player) == senderIP)
+			{
+				if (!m_currentGame->getSlot(player)->getPatchVersion() && msg->PatchInfo.patchVersion > 0)
+				{
+					m_currentGame->getSlot(player)->setPatchVersion(msg->PatchInfo.patchVersion);
+				}
+				break;
+			}
+		}
+	}
 }

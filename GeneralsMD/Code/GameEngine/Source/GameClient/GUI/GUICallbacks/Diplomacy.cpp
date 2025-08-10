@@ -572,7 +572,7 @@ void PopulateInGameDiplomacyPopup( void )
 					}
 				}
 
-				if (slot->isHuman() && (TheGameInfo->getLocalSlotNum() == slotNum || slot->getPatchVersion() >= 1337))
+				if (slot->isHuman() && (TheGameInfo->getLocalSlotNum() == slotNum || slot->getPatchVersion() > 0))
 					text.concat(L"[SH]");
 
 				staticTextStatus[rowNum]->winSetEnabledTextColors(frontColor, backColor);
