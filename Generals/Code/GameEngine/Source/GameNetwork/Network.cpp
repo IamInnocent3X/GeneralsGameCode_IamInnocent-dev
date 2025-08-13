@@ -95,7 +95,7 @@ NetworkInterface *TheNetwork = NULL;
 // PRIVATE PROTOTYPES /////////////////////////////////////////////////////////
 
 /**
- * The Network class is used to instantiate a singleton which 
+ * The Network class is used to instantiate a singleton which
  * implements the interface to all Network operations such as message stream processing and network communications.
  */
 class Network : public NetworkInterface
@@ -251,7 +251,7 @@ Bool Network::isPlayerConnected( Int playerID ) {
 /**
  * This creates a network object and returns it.
  */
-NetworkInterface *NetworkInterface::createNetwork() 
+NetworkInterface *NetworkInterface::createNetwork()
 {
 	return NEW Network;
 }
@@ -270,7 +270,7 @@ Network::Network()
 	m_frameDataReady = FALSE;
 	m_sawCRCMismatch = FALSE;
 	//
-	
+
 	m_conMgr = NULL;
 	m_messageWindow = NULL;
 
@@ -497,7 +497,7 @@ Int Network::getExecutionFrame() {
  * send our info for the last frame to the other players.
  * Return true if the message should be "eaten" by the network.
  */
-Bool Network::processCommand(GameMessage *msg) 
+Bool Network::processCommand(GameMessage *msg)
 {
 	if ((m_lastFrame != TheGameLogic->getFrame()) || (m_localStatus == NETLOCALSTATUS_PREGAME)) {
 		// If this is the start of a new game logic frame, then tell the connection manager that the last
@@ -588,7 +588,7 @@ void Network::RelayCommandsToCommandList(UnsignedInt frame) {
 	while (msg != NULL) {
 		NetCommandType cmdType = msg->getCommand()->getNetCommandType();
 		if (cmdType == NETCOMMANDTYPE_GAMECOMMAND) {
-			//DEBUG_LOG(("Network::RelayCommandsToCommandList - appending command %d of type %s to command list on frame %d", msg->getCommand()->getID(), ((NetGameCommandMsg *)msg->getCommand())->constructGameMessage()->getCommandAsAsciiString().str(), TheGameLogic->getFrame()));
+			//DEBUG_LOG(("Network::RelayCommandsToCommandList - appending command %d of type %s to command list on frame %d", msg->getCommand()->getID(), ((NetGameCommandMsg *)msg->getCommand())->constructGameMessage()->getCommandAsString(), TheGameLogic->getFrame()));
 			TheCommandList->appendMessage(((NetGameCommandMsg *)msg->getCommand())->constructGameMessage());
 		} else {
 			processFrameSynchronizedNetCommand(msg);
