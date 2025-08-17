@@ -45,6 +45,7 @@
 #include "GameNetwork/LANAPICallbacks.h"	// for testing packet size
 #include "strtok_r.h"
 #include <algorithm>
+#include <numeric>
 #include <utility>
 
 
@@ -926,11 +927,11 @@ static AsciiStringVec BuildPlayerNames(const GameInfo& game)
 	return playerNames;
 }
 
-static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncateAmount)
+static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 {
 	// wont truncate any name to below this length
 	CONSTEXPR const Int MinimumNameLength = 2;
-	UnsignedInt availableForTruncation = 0;
+	Int availableForTruncation = 0;
 
 	// make length+index pairs for the player names
 	std::vector<LengthIndexPair> lengthIndex;
@@ -949,24 +950,32 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 		return false;
 	}
 
-	// sort based on length in descending order
-	std::sort(lengthIndex.begin(), lengthIndex.end(), std::greater<LengthIndexPair>());
+	// sort based on length in ascending order
+	std::sort(lengthIndex.begin(), lengthIndex.end());
 
+	Int truncateNameAmount = 0;
 	for (size_t i = 0; i < lengthIndex.size(); ++i)
 	{
-		size_t remainingEntries = lengthIndex.size() - i;
-		// determine average length based on the total amount of characters available for truncation and how many are remaining to be removed
-		int avgLengthForRemaining = ((availableForTruncation - truncateAmount) + (remainingEntries * MinimumNameLength)) / remainingEntries;
-		if (lengthIndex[i].Length > avgLengthForRemaining)
+		Int remainingNamesLength = std::accumulate(lengthIndex.begin() + i, lengthIndex.end(), 0,
+			[](Int sum, const LengthIndexPair& l) { return sum + l.Length; });
+		// round avg name length up, which will penalize the final entry (longest name) as it will have to account for the roundings
+		Int avgNameLength = ((remainingNamesLength - truncateAmount) + (playerNames.size() - i - 1)) / (playerNames.size() - i);
+		if (lengthIndex[i].Length <= avgNameLength)
 		{
-			int truncateCurrent = lengthIndex[i].Length - avgLengthForRemaining;
-			playerNames[lengthIndex[i].Index].truncateBy(truncateCurrent);
-			truncateAmount -= truncateCurrent;
+			continue;
 		}
 
-		availableForTruncation -= lengthIndex[i].Length - MinimumNameLength;
+		// ensure a longer name is not truncated less than a previous, shorter name
+		truncateNameAmount = std::max(truncateNameAmount, lengthIndex[i].Length - avgNameLength);
+		if (i == lengthIndex.size() - 1)
+		{
+			// ensure we account for rounding errors when truncating the last, longest entry
+			truncateNameAmount = std::max(truncateAmount, truncateNameAmount);
+		}
 
-		if (truncateAmount == 0)
+		playerNames[lengthIndex[i].Index].truncateBy(truncateNameAmount);
+		truncateAmount -= truncateNameAmount;
+		if (truncateAmount <= 0)
 		{
 			break;
 		}
@@ -976,11 +985,22 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, UnsignedInt truncat
 	std::set<AsciiString> uniqueNames;
 	for (size_t ni = 0; ni < playerNames.size(); ++ni)
 	{
-		while (!uniqueNames.insert(playerNames[ni]).second)
+		static_assert(MAX_SLOTS < 10, "Name collision avoidance assumes less than 10 players in the game.");
+
+		if (playerNames[ni].isNotEmpty() && !uniqueNames.insert(playerNames[ni]).second)
 		{
-			// the name already exists, change the last char to a random between a and z to ensure differentiation
+			// the name already exists, change the last char to the number index of the player in the game
 			playerNames[ni].removeLastChar();
-			playerNames[ni].concat(GameClientRandomValue('a', 'z'));
+			playerNames[ni].concat('0' + static_cast<char>(ni));
+
+			Int offset = 0;
+			while (!uniqueNames.insert(playerNames[ni]).second)
+			{
+				// iterate through 0-9 and change the last char to ensure differentiation. Guaranteed to find a unique name as the number of slots is less than 10.
+				playerNames[ni].removeLastChar();
+				playerNames[ni].concat('0' + offset);
+				++offset;
+			}
 		}
 	}
 
