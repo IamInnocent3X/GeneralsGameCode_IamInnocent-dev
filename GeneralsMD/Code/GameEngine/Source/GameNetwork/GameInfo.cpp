@@ -927,6 +927,11 @@ static AsciiStringVec BuildPlayerNames(const GameInfo& game)
 	return playerNames;
 }
 
+static Int SumLength(Int sum, const LengthIndexPair& l)
+{
+	return sum + l.Length;
+}
+
 static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 {
 	// wont truncate any name to below this length
@@ -956,8 +961,7 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 	Int truncateNameAmount = 0;
 	for (size_t i = 0; i < lengthIndex.size(); ++i)
 	{
-		Int remainingNamesLength = std::accumulate(lengthIndex.begin() + i, lengthIndex.end(), 0,
-			[](Int sum, const LengthIndexPair& l) { return sum + l.Length; });
+		Int remainingNamesLength = std::accumulate(lengthIndex.begin() + i, lengthIndex.end(), 0, SumLength);
 		// round avg name length up, which will penalize the final entry (longest name) as it will have to account for the roundings
 		Int avgNameLength = ((remainingNamesLength - truncateAmount) + (playerNames.size() - i - 1)) / (playerNames.size() - i);
 		if (lengthIndex[i].Length <= avgNameLength)
