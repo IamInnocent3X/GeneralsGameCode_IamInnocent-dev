@@ -45,7 +45,6 @@
 #include "Common/ThingTemplate.h"
 #include "Common/BuildAssistant.h"
 #include "Common/Recorder.h"
-#include "Common/BuildAssistant.h"
 #include "Common/SpecialPower.h"
 
 #include "GameClient/Anim2D.h"
@@ -67,7 +66,6 @@
 #include "GameClient/GadgetStaticText.h"
 #include "GameClient/View.h"
 #include "GameClient/TerrainVisual.h"
-#include "GameClient/ControlBar.h"
 #include "GameClient/Display.h"
 #include "GameClient/WindowLayout.h"
 #include "GameClient/LookAtXlat.h"
@@ -1470,6 +1468,13 @@ void InGameUI::handleBuildPlacements( void )
 				v.y = worldEnd.y - worldStart.y;
 				angle = v.toAngle();
 
+				// TheSuperHackers @tweak Stubbjax 04/08/2025 Snap angle to nearest 45 degrees
+				// while using force attack mode for convenience.
+				if (isInForceAttackMode())
+				{
+					const Real snapRadians = DEG_TO_RADF(45);
+					angle = WWMath::Round(angle / snapRadians) * snapRadians;
+				}
 			}  // end if
 
 		}  // end if
@@ -1842,11 +1847,7 @@ void InGameUI::update( void )
 //		moneyWin = TheWindowManager->winGetWindowFromId( NULL, moneyWindowKey );
 //
 //	}  // end if
-	Player *moneyPlayer = NULL;
-	if( TheControlBar->isObserverControlBarOn())
-		moneyPlayer = TheControlBar->getObserverLookAtPlayer();
-	else
-		moneyPlayer = ThePlayerList->getLocalPlayer();
+	Player* moneyPlayer = TheControlBar->getCurrentlyViewedPlayer();
 	if( moneyPlayer)
 	{
 		Int currentMoney = moneyPlayer->getMoney()->countMoney();
@@ -1883,26 +1884,30 @@ void InGameUI::update( void )
 		layout->runUpdate();
 	}
 
-	//Handle keyboard camera rotations
-	if( m_cameraRotatingLeft && !m_cameraRotatingRight )
+	if (m_cameraRotatingLeft || m_cameraRotatingRight || m_cameraZoomingIn || m_cameraZoomingOut)
 	{
-		//Keyboard rotate left
-		TheTacticalView->setAngle( TheTacticalView->getAngle() - TheGlobalData->m_keyboardCameraRotateSpeed );
-	}
-	if( m_cameraRotatingRight && !m_cameraRotatingLeft )
-	{
-		//Keyboard rotate right
-		TheTacticalView->setAngle( TheTacticalView->getAngle() + TheGlobalData->m_keyboardCameraRotateSpeed );
-	}
-	if( m_cameraZoomingIn && !m_cameraZoomingOut )
-	{
-		//Keyboard zoom in
-		TheTacticalView->zoomIn();
-	}
-	if( m_cameraZoomingOut && !m_cameraZoomingIn )
-	{
-		//Keyboard zoom out
-		TheTacticalView->zoomOut();
+		// TheSuperHackers @tweak The camera rotation and zoom are now decoupled from the render update.
+		const Real fpsRatio = (Real)BaseFps / TheGameEngine->getUpdateFps();
+		const Real rotateAngle = TheGlobalData->m_keyboardCameraRotateSpeed * fpsRatio;
+		const Real zoomHeight = (Real)View::ZoomHeightPerSecond * fpsRatio;
+
+		if( m_cameraRotatingLeft && !m_cameraRotatingRight )
+		{
+			TheTacticalView->setAngle( TheTacticalView->getAngle() - rotateAngle );
+		}
+		else if( m_cameraRotatingRight && !m_cameraRotatingLeft )
+		{
+			TheTacticalView->setAngle( TheTacticalView->getAngle() + rotateAngle );
+		}
+
+		if( m_cameraZoomingIn && !m_cameraZoomingOut )
+		{
+			TheTacticalView->zoom( -zoomHeight );
+		}
+		else if( m_cameraZoomingOut && !m_cameraZoomingIn )
+		{
+			TheTacticalView->zoom( +zoomHeight );
+		}
 	}
 
 
@@ -4183,8 +4188,8 @@ void InGameUI::militarySubtitle( const AsciiString& label, Int duration )
 
 	// calculate where this screen position should be since the position being passed in is based off 8x6
 	Coord2D multiplier;
-	multiplier.x = (float)TheDisplay->getWidth() / 800.0f;
-	multiplier.y = (float)TheDisplay->getHeight() / 600.0f;
+	multiplier.x = (Real)TheDisplay->getWidth() / (Real)DEFAULT_DISPLAY_WIDTH;
+	multiplier.y = (Real)TheDisplay->getHeight() / (Real)DEFAULT_DISPLAY_HEIGHT;
 
 	// lets bring out the data structure!
 	m_militarySubtitle = NEW MilitarySubtitleData;

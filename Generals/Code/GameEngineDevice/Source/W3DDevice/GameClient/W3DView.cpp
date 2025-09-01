@@ -38,6 +38,7 @@
 
 // USER INCLUDES //////////////////////////////////////////////////////////////////////////////////
 #include "Common/BuildAssistant.h"
+#include "Common/GameEngine.h"
 #include "Common/GlobalData.h"
 #include "Common/Module.h"
 #include "Common/RandomValue.h"
@@ -98,7 +99,7 @@
 
 
 // 30 fps
-Int TheW3DFrameLengthInMsec = 1000/LOGICFRAMES_PER_SECOND; // default is 33msec/frame == 30fps. but we may change it depending on sys config.
+Real TheW3DFrameLengthInMsec = MSEC_PER_LOGICFRAME_REAL; // default is 33msec/frame == 30fps. but we may change it depending on sys config.
 static const Int MAX_REQUEST_CACHE_SIZE = 40;	// Any size larger than 10, or examine code below for changes. jkmcd.
 static const Real DRAWABLE_OVERSCAN = 75.0f;  ///< 3D world coords of how much to overscan in the 3D screen region
 
@@ -909,7 +910,9 @@ Bool W3DView::updateCameraMovements()
 		didUpdate = true;
 	} else if (m_doingMoveCameraOnWaypointPath) {
 		m_previousLookAtPosition = *getPosition();
-		moveAlongWaypointPath(TheW3DFrameLengthInMsec);
+		// TheSuperHackers @tweak The scripted camera movement is now decoupled from the render update.
+		const Real logicTimeScaleOverFpsRatio = TheGameEngine->getActualLogicTimeScaleOverFpsRatio();
+		moveAlongWaypointPath(TheW3DFrameLengthInMsec * logicTimeScaleOverFpsRatio);
 		didUpdate = true;
 	}
 	if (m_doingScriptedCameraLock)
@@ -931,6 +934,50 @@ Bool W3DView::updateCameraMovements()
 void W3DView::updateView(void)
 {
 	UPDATE();
+}
+
+// TheSuperHackers @tweak xezon 12/08/2025 The drawable update is no longer tied to the
+// render update, but it advanced separately for every fixed time step. This ensures that
+// things like vehicle wheels no longer spin too fast on high frame rates or keep spinning
+// on game pause.
+// The camera shaker is also no longer tied to the render update. The shake does sharp shakes
+// on every fixed time step, and is not intended to have linear interpolation during the
+// render update.
+void W3DView::stepView()
+{
+	//
+	// Process camera shake
+	//
+	if (m_shakeIntensity > 0.01f)
+	{
+		m_shakeOffset.x = m_shakeIntensity * m_shakeAngleCos;
+		m_shakeOffset.y = m_shakeIntensity * m_shakeAngleSin;
+
+		// fake a stiff spring/damper
+		const Real dampingCoeff = 0.75f;
+		m_shakeIntensity *= dampingCoeff;
+
+		// spring is so "stiff", it pulls 180 degrees opposite each frame
+		m_shakeAngleCos = -m_shakeAngleCos;
+		m_shakeAngleSin = -m_shakeAngleSin;
+	}
+	else
+	{
+		m_shakeIntensity = 0.0f;
+		m_shakeOffset.x = 0.0f;
+		m_shakeOffset.y = 0.0f;
+	}
+
+	if (TheScriptEngine->isTimeFast()) {
+		return; // don't draw - makes it faster :) jba.
+	}
+
+	Region3D axisAlignedRegion;
+	getAxisAlignedViewRegion(axisAlignedRegion);
+
+	// render all of the visible Drawables
+	/// @todo this needs to use a real region partition or something
+	TheGameClient->iterateDrawablesInRegion( &axisAlignedRegion, drawDrawable, this );
 }
 
 //DECLARE_PERF_TIMER(W3DView_updateView)
@@ -1143,28 +1190,10 @@ void W3DView::update(void)
 	}
 	//
 	// Process camera shake
-	/// @todo Make this framerate-independent
 	//
 	if (m_shakeIntensity > 0.01f)
 	{
-		m_shakeOffset.x = m_shakeIntensity * m_shakeAngleCos;
-		m_shakeOffset.y = m_shakeIntensity * m_shakeAngleSin;
-
-		// fake a stiff spring/damper
-		const Real dampingCoeff = 0.75f;
-		m_shakeIntensity *= dampingCoeff;
-
-		// spring is so "stiff", it pulls 180 degrees opposite each frame
-		m_shakeAngleCos = -m_shakeAngleCos;
-		m_shakeAngleSin = -m_shakeAngleSin;
-
 		recalcCamera = true;
-	}
-	else
-	{
-		m_shakeIntensity = 0.0f;
-		m_shakeOffset.x = 0.0f;
-		m_shakeOffset.y = 0.0f;
 	}
 
 	/*
@@ -1219,14 +1248,6 @@ void W3DView::update(void)
 	}
 	if (recalcCamera)
 		setCameraTransform();
-
-	Region3D axisAlignedRegion;
-	getAxisAlignedViewRegion(axisAlignedRegion);
-
-	// render all of the visible Drawables
-	/// @todo this needs to use a real region partition or something
-	if (WW3D::Get_Frame_Time())	//make sure some time actually elapsed
-		TheGameClient->iterateDrawablesInRegion( &axisAlignedRegion, drawDrawable, this );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2908,7 +2929,7 @@ void W3DView::pitchCameraOneFrame(void)
 
 // ------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------
-void W3DView::moveAlongWaypointPath(Int milliseconds)
+void W3DView::moveAlongWaypointPath(Real milliseconds)
 {
 	m_mcwpInfo.elapsedTimeMilliseconds += milliseconds;
 	if (TheGlobalData->m_disableCameraMovement) {
