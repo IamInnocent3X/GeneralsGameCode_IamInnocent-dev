@@ -951,7 +951,8 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 
 	if (truncateAmount > availableForTruncation)
 	{
-		DEBUG_LOG(("TruncatePlayerNames - Requested to truncate %u chars from player names, but only %u were available for truncation.", truncateAmount, availableForTruncation));
+		DEBUG_LOG(("TruncatePlayerNames - Requested to truncate %u chars from player names, but only %u were available for truncation.",
+			truncateAmount, availableForTruncation));
 		return false;
 	}
 
@@ -985,30 +986,38 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 		}
 	}
 
-	// ensure there are no duplicates in the truncated names
+	return true;
+}
+
+static void EnsureUniqueNames(AsciiStringVec& playerNames)
+{
+	// ensure there are no duplicates in the list of player names
 	std::set<AsciiString> uniqueNames;
-	for (size_t ni = 0; ni < playerNames.size(); ++ni)
+	for (size_t i = 0; i < playerNames.size(); ++i)
 	{
 		static_assert(MAX_SLOTS < 10, "Name collision avoidance assumes less than 10 players in the game.");
+		AsciiString& playerName = playerNames[i];
 
-		if (playerNames[ni].isNotEmpty() && !uniqueNames.insert(playerNames[ni]).second)
+		if (playerName.isEmpty())
+			continue;
+
+		Int charOffset = -1;
+		Int nameLength = -1;
+		while (uniqueNames.insert(playerName).second == false)
 		{
-			// the name already exists, change the last char to the number index of the player in the game
-			playerNames[ni].removeLastChar();
-			playerNames[ni].concat('0' + static_cast<char>(ni));
-
-			Int offset = 0;
-			while (!uniqueNames.insert(playerNames[ni]).second)
+			// The name already exists, so change the last char to the number index of the player in the game.
+			// If that fails, iterate through 0-9 and change the last char to ensure differentiation.
+			// Guaranteed to find a unique name as the number of slots is less than 10.
+			if (nameLength == -1)
 			{
-				// iterate through 0-9 and change the last char to ensure differentiation. Guaranteed to find a unique name as the number of slots is less than 10.
-				playerNames[ni].removeLastChar();
-				playerNames[ni].concat('0' + offset);
-				++offset;
+				nameLength = playerName.getLength();
 			}
+
+			char charToTry = '0' + static_cast<char>(charOffset == -1 ? i : charOffset);
+			playerName[nameLength - 1] = charToTry;
+			++charOffset;
 		}
 	}
-
-	return true;
 }
 
 AsciiString GameInfoToAsciiString(const GameInfo *game, const AsciiStringVec& playerNames)
@@ -1113,11 +1122,13 @@ AsciiString GameInfoToAsciiString(const GameInfo* game)
 		const UnsignedInt truncateAmount = infoString.getLength() - m_lanMaxOptionsLength;
 		if (!TruncatePlayerNames(playerNames, truncateAmount))
 		{
-			DEBUG_CRASH(("WARNING: options string is longer than expected! Length is %d, but max is %d. Attempted to truncate player names by %u characters, but was unsuccessful!",
-					infoString.getLength(), m_lanMaxOptionsLength, truncateAmount));
+			DEBUG_CRASH(("WARNING: options string is longer than expected! Length is %d, but max is %d. "
+				"Attempted to truncate player names by %u characters, but was unsuccessful!",
+				infoString.getLength(), m_lanMaxOptionsLength, truncateAmount));
 			return AsciiString::TheEmptyString;
 		}
 
+		EnsureUniqueNames(playerNames);
 		infoString = GameInfoToAsciiString(game, playerNames);
 	}
 
