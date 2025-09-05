@@ -935,8 +935,7 @@ static Int SumLength(Int sum, const LengthIndexPair& l)
 static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 {
 	// wont truncate any name to below this length
-	CONSTEXPR const Int MinimumNameLength = 2;
-	Int availableForTruncation = 0;
+	CONSTEXPR const Int MinimumNameLength = 1;
 
 	// make length+index pairs for the player names
 	std::vector<LengthIndexPair> lengthIndex;
@@ -944,15 +943,16 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 	for (size_t pi = 0; pi < playerNames.size(); ++pi)
 	{
 		Int playerNameLength = playerNames[pi].getLength();
-		lengthIndex[pi].Length = playerNameLength;
+		lengthIndex[pi].Length = std::max(0, playerNameLength - MinimumNameLength);
 		lengthIndex[pi].Index = pi;
-		availableForTruncation += std::max(0, playerNameLength - MinimumNameLength);
 	}
 
-	if (truncateAmount > availableForTruncation)
+	Int remainingNamesLength = std::accumulate(lengthIndex.begin(), lengthIndex.end(), 0, SumLength);
+
+	if (truncateAmount > remainingNamesLength)
 	{
 		DEBUG_LOG(("TruncatePlayerNames - Requested to truncate %u chars from player names, but only %u were available for truncation.",
-			truncateAmount, availableForTruncation));
+			truncateAmount, remainingNamesLength));
 		return false;
 	}
 
@@ -962,9 +962,9 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 	Int truncateNameAmount = 0;
 	for (size_t i = 0; i < lengthIndex.size(); ++i)
 	{
-		Int remainingNamesLength = std::accumulate(lengthIndex.begin() + i, lengthIndex.end(), 0, SumLength);
 		// round avg name length up, which will penalize the final entry (longest name) as it will have to account for the roundings
 		Int avgNameLength = ((remainingNamesLength - truncateAmount) + (playerNames.size() - i - 1)) / (playerNames.size() - i);
+		remainingNamesLength -= lengthIndex[i].Length;
 		if (lengthIndex[i].Length <= avgNameLength)
 		{
 			continue;
@@ -980,10 +980,6 @@ static Bool TruncatePlayerNames(AsciiStringVec& playerNames, Int truncateAmount)
 
 		playerNames[lengthIndex[i].Index].truncateBy(truncateNameAmount);
 		truncateAmount -= truncateNameAmount;
-		if (truncateAmount <= 0)
-		{
-			break;
-		}
 	}
 
 	return true;
@@ -1006,7 +1002,7 @@ static void EnsureUniqueNames(AsciiStringVec& playerNames)
 		while (uniqueNames.insert(playerName).second == false)
 		{
 			// The name already exists, so change the last char to the number index of the player in the game.
-			// If that fails, iterate through 0-9 and change the last char to ensure differentiation.
+			// If that fails to be unique, iterate through 0-9 and change the last char to ensure differentiation.
 			// Guaranteed to find a unique name as the number of slots is less than 10.
 			if (nameLength == -1)
 			{
