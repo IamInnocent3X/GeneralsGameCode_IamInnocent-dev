@@ -333,6 +333,25 @@ public:
 
 	UnicodeString& operator=(const UnicodeString& stringSrc);	///< the same as set()
 	UnicodeString& operator=(const WideChar* s);				///< the same as set()
+
+	struct WideCharProxy {
+		UnicodeString& str;
+		Int index;
+
+		WideCharProxy(UnicodeString& string, const Int index) : str(string), index(index) {};
+		void operator= (WideChar rhs)
+		{
+			Int length = str.getLength();
+			DEBUG_ASSERTCRASH(index >= 0 && index < length, ("bad index in WideCharProxy::operator="));
+			str.validate();
+			str.ensureUniqueBufferOfSize(length + 1, true, NULL, NULL);
+			str.peek()[index] = rhs;
+		}
+
+		operator WideChar() const { return str.getCharAt(index); }
+	};
+
+	WideCharProxy operator[](const Int index) { return WideCharProxy(*this, index); }
 };
 
 
