@@ -1099,7 +1099,7 @@ InGameUI::~InGameUI()
 void InGameUI::init( void )
 {
 	INI ini;
-	ini.load( AsciiString( "Data\\INI\\InGameUI.ini" ), INI_LOAD_OVERWRITE, NULL );
+	ini.loadFileDirectory( AsciiString( "Data\\INI\\InGameUI" ), INI_LOAD_OVERWRITE, NULL );
 
 	//override INI values with language localized values:
 	if (TheGlobalLanguageData)
@@ -1186,6 +1186,8 @@ void InGameUI::init( void )
 
 	m_soloNexusSelectedDrawableID = INVALID_DRAWABLE_ID;
 
+	setDrawRMBScrollAnchor(TheGlobalData->m_drawScrollAnchor);
+	setMoveRMBScrollAnchor(TheGlobalData->m_moveScrollAnchor);
 
 }  // end init
 
