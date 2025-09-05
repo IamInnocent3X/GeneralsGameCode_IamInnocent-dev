@@ -334,6 +334,7 @@ public:
 	UnicodeString& operator=(const UnicodeString& stringSrc);	///< the same as set()
 	UnicodeString& operator=(const WideChar* s);				///< the same as set()
 
+	friend struct WideCharProxy;
 	struct WideCharProxy {
 		UnicodeString& str;
 		Int index;

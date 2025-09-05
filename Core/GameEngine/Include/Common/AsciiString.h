@@ -382,6 +382,7 @@ public:
 	AsciiString& operator=(const AsciiString& stringSrc);	///< the same as set()
 	AsciiString& operator=(const char* s);				///< the same as set()
 
+	friend struct CharProxy;
 	struct CharProxy {
 		AsciiString& str;
 		Int index;
