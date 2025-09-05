@@ -382,7 +382,6 @@ public:
 	AsciiString& operator=(const AsciiString& stringSrc);	///< the same as set()
 	AsciiString& operator=(const char* s);				///< the same as set()
 
-	friend struct CharProxy;
 	struct CharProxy {
 		AsciiString& str;
 		Int index;
@@ -392,13 +391,14 @@ public:
 		{
 			Int length = str.getLength();
 			DEBUG_ASSERTCRASH(index >= 0 && index < length, ("bad index in CharProxy::operator="));
-			str.validate();
 			str.ensureUniqueBufferOfSize(length + 1, true, NULL, NULL);
 			str.peek()[index] = rhs;
 		}
 
 		operator Char() const { return str.getCharAt(index); }
 	};
+
+	friend struct CharProxy;
 
 	CharProxy operator[](const Int index) { return CharProxy(*this, index); }
 
