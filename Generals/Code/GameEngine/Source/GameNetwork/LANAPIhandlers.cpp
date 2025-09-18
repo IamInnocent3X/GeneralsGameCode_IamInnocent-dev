@@ -289,7 +289,21 @@ void LANAPI::handleRequestJoin( LANMessage *msg, UnsignedInt senderIP )
 			}
 #endif
 
-			// We're the host, so see if he has a duplicate name
+			// We're the host, so first validate the name
+			if (wcschr(msg->name, L',') || wcschr(msg->name, L';') || wcschr(msg->name, L':'))
+			{
+				// Commas, colons or semicolons should not be in a player name.
+				// If so, just deny with a duplicate name error (for backwards compatibility with retail)
+				reply.LANMessageType = LANMessage::MSG_JOIN_DENY;
+				reply.GameNotJoined.reason = LANAPIInterface::RET_DUPLICATE_NAME;
+				reply.GameNotJoined.gameIP = m_localIP;
+				reply.GameNotJoined.playerIP = senderIP;
+				canJoin = false;
+
+				DEBUG_LOG(("LANAPI::handleRequestJoin - join denied because of illegal characters in the player name."));
+			}
+
+			// Then see if the player has a duplicate name
 			for (player = 0; canJoin && player<MAX_SLOTS; ++player)
 			{
 				LANGameSlot *slot = m_currentGame->getLANSlot(player);
