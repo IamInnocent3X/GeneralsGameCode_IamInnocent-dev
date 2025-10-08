@@ -494,6 +494,10 @@ GlobalData* GlobalData::m_theOriginal = NULL;
 
 	{ "PlayStats",									INI::parseInt,				NULL,			offsetof( GlobalData, m_playStats ) },
 
+	{ "UsePartitionManagerToIterateDrawables",	 INI::parseBool, NULL, offsetof(GlobalData, m_usePartitionManagerToIterateDrawables) },
+	{ "UsePartitionManagerToIterateDrawablesOnlySelect",	 INI::parseBool, NULL, offsetof(GlobalData, m_usePartitionManagerToIterateDrawablesOnlySelect) },
+	{ "UseEfficientIterateDrawablesScheme",	 INI::parseBool, NULL, offsetof(GlobalData, m_useEfficientDrawableScheme) },
+
 #if defined(RTS_DEBUG)
 	{ "DisableCameraFade",			INI::parseBool,				NULL,			offsetof( GlobalData, m_disableCameraFade ) },
 	{ "DisableScriptedInputDisabling",			INI::parseBool,		NULL,			offsetof( GlobalData, m_disableScriptedInputDisabling ) },
@@ -1028,6 +1032,10 @@ GlobalData::GlobalData()
 	m_forceBenchmark = FALSE;	///<forces running of CPU detection benchmark, even on known cpu's.
 
 	m_keyboardCameraRotateSpeed = 0.1f;
+
+	m_usePartitionManagerToIterateDrawables = FALSE;
+	m_usePartitionManagerToIterateDrawablesOnlySelect = FALSE;
+	m_useEfficientDrawableScheme = FALSE;
 
   // Set user data directory based on registry settings instead of INI parameters. This allows us to
   // localize the leaf name.

@@ -2653,7 +2653,7 @@ void Drawable::draw()
 		applyPhysicsXform(&transformMtx);
 	}
 
-	for (DrawModule** dm = getDrawModules(); *dm; ++dm)
+	for (DrawModule** dm = getDrawModules(); checkDrawModuleNullptr(dm) && *dm; ++dm)
 	{
 		(*dm)->doDrawModule(&transformMtx);
 	}
@@ -3983,7 +3983,7 @@ DrawModule** Drawable::getDrawModules()
 		}
 		else
 		{
-			for (DrawModule** dm2 = dm; *dm2; ++dm2)
+			for (DrawModule** dm2 = dm; checkDrawModuleNullptr(dm2) && *dm2; ++dm2)
 			{
 				ObjectDrawInterface* di = (*dm2)->getObjectDrawInterface();
 				if (di)
@@ -3996,6 +3996,20 @@ DrawModule** Drawable::getDrawModules()
 
 	DEBUG_ASSERTCRASH(dm != NULL, ("Draw Module List is not expected NULL"));
 	return dm;
+}
+
+Bool Drawable::checkDrawModuleNullptr(DrawModule** dm)
+{
+	if(!TheGlobalData->m_useEfficientDrawableScheme)
+		return TRUE;
+
+	if(dm == nullptr)
+	{
+		//TheGameClient->removeDrawableFromEfficientList(this);
+		//TheGameClient->clearEfficientDrawablesList();
+		return FALSE;
+	}
+	return TRUE;
 }
 
 //-------------------------------------------------------------------------------------------------
